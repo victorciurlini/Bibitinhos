@@ -18,20 +18,20 @@ def is_port_open(port: int) -> bool:
         return s.connect_ex(('127.0.0.1', port)) == 0
 
 def get_status_panel():
-    backend_status = is_port_open(8000)
+    backend_status = is_port_open(8001)
     frontend_status = is_port_open(5173)
     
     b_text = "[bold green][ONLINE][/bold green]" if backend_status else "[bold red][OFFLINE][/bold red]"
     f_text = "[bold green][ONLINE][/bold green]" if frontend_status else "[bold red][OFFLINE][/bold red]"
     
-    text = Text.from_markup(f"Backend (Port 8000): {b_text}\nFrontend (Port 5173): {f_text}")
+    text = Text.from_markup(f"Backend (Port 8001): {b_text}\nFrontend (Port 5173): {f_text}")
     return Panel(text, title="Bibitinhos Status Panel", expand=False, border_style="cyan")
 
 def start_backend():
-    if is_port_open(8000):
+    if is_port_open(8001):
         return
     log = open("backend.log", "a")
-    subprocess.Popen([sys.executable, "-m", "uvicorn", "main:app", "--reload"], cwd="backend", stdout=log, stderr=log, creationflags=CREATE_NO_WINDOW)
+    subprocess.Popen([sys.executable, "-m", "uvicorn", "main:app", "--port", "8001", "--reload"], cwd="backend", stdout=log, stderr=log, creationflags=CREATE_NO_WINDOW)
     time.sleep(0.5)
 
 def start_frontend():
@@ -66,6 +66,9 @@ def tail_log(filename):
         time.sleep(2)
         return
     with open(filename, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+        for line in lines[-30:]:
+            sys.stdout.write(line)
         f.seek(0, 2)
         try:
             while True:
@@ -127,11 +130,11 @@ def main():
                 while True:
                     sub_choice = questionary.select("Menu Stop:", choices=["Stop Tudo", "Stop Backend", "Stop Frontend", "Voltar"]).ask()
                     if sub_choice == "Stop Tudo":
-                        stop_port(8000)
+                        stop_port(8001)
                         stop_port(5173)
                         break
                     elif sub_choice == "Stop Backend":
-                        stop_port(8000)
+                        stop_port(8001)
                         break
                     elif sub_choice == "Stop Frontend":
                         stop_port(5173)

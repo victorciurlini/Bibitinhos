@@ -27,11 +27,11 @@ class ConnectionManager:
             self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
-        for connection in self.active_connections:
+        for connection in list(self.active_connections):
             try:
                 await connection.send_text(json.dumps(message))
             except Exception:
-                pass
+                self.disconnect(connection)
 
 manager = ConnectionManager()
 
@@ -58,10 +58,14 @@ engine = SimulationEngine()
 
 async def simulation_loop():
     while True:
-        engine.step(1 / 30.0)
-        state = engine.get_state()
-        state["type"] = "state_update"
-        await manager.broadcast(state)
+        try:
+            engine.step(1 / 30.0)
+            state = engine.get_state()
+            state["type"] = "state_update"
+            await manager.broadcast(state)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
         await asyncio.sleep(1 / 30.0) # 30 FPS
 
 @app.on_event("startup")
@@ -70,4 +74,4 @@ async def startup_event():
     for _ in range(10):
         engine.add_creature(Creature(engine))
     # Inicia o loop da simulação em background
-    asyncio.create_task(simulation_loop())
+    app.state.sim_task = asyncio.create_task(simulation_loop())

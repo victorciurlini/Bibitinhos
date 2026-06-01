@@ -1,90 +1,54 @@
-# Planejamento: Automação e Gerenciamento (manager.bat)
+# Planejamento: Refinamento Arquitetural "Bibitinhos Core"
 
 ## Objetivo
-Criar um script `manager.bat` interativo no repositório final (`C:\Users\victo.000\OneDrive\Documentos\python\Bibitinhos`) para orquestrar e automatizar o ciclo de vida da aplicação (Build, Start, Stop, Monitoramento de Logs e Testes Automatizados), além de configurar a infraestrutura básica de testes com `pytest` e `vitest`.
+Implementar as regras ecológicas, cognitivas e de reprodução em tempo real. Descartar as posições estáticas atuais e introduzir uma física contínua rigorosa e inteligência artificial (rtNEAT) descentralizada. 
 
-## Arquitetura Definida no /grill-me
-1. **Gestão de Processos:** Os serviços rodarão nativamente no Windows em background oculto (`Start-Process -WindowStyle Hidden`).
-2. **Logs:** A saída padrão (stdout/stderr) será redirecionada para arquivos `backend.log` e `frontend.log`. A opção de monitorar o log usará o comando `Get-Content -Wait` para dar a sensação de *tail*, que pode ser interrompida pelo usuário para retornar ao menu.
-3. **Parada de Serviços (Stop):** O script buscará os PIDs atrelados às portas da aplicação (8000 para FastAPI, 5173 para Vite) e os matará usando `taskkill`.
-4. **Testes Automatizados:** `pytest` no backend (utilizando SQLite in-memory para testes isolados de DB) e `vitest` no frontend.
+## Decisões Arquiteturais Consolidadas
+1. **Física C-Binding:** A biblioteca `pymunk` assumirá a engine de colisão (roda exclusivamente em CPU).
+2. **Desacoplamento Cognitivo:** A física fluirá a 60 FPS com `Variable Delta Time`, enquanto a avaliação do cérebro neural operará estritamente a 10 FPS (Brain Tick Rate).
+3. **rtNEAT Orgânico:** A classe nativa de populações em loop do `neat-python` será descartada. O algoritmo genético será "hackeado", instanciando genomas e aplicando `crossover` e `mutate` estritamente durante o contato físico sexual.
+4. **Otimização Visual:** Varredura em O(N) será evitada usando *Bounding Box Spatial Hashing* do Pymunk somado a trigonometria vetorizada via Numpy.
 
-## Diagrama de Navegação da CLI (TUI)
-
-```mermaid
-stateDiagram-v2
-    [*] --> TelaInicial : Iniciar manager.bat
-    
-    %% --- Submenu START ---
-    TelaInicial --> MenuStart : Seleciona "Start"
-    MenuStart --> StartAll : Start Tudo
-    MenuStart --> StartBackend : Start Backend
-    MenuStart --> StartFrontend : Start Frontend
-    MenuStart --> TelaInicial : [Voltar]
-    StartAll --> TelaInicial : Feedback Visual Imediato
-    StartBackend --> TelaInicial : Feedback Visual Imediato
-    StartFrontend --> TelaInicial : Feedback Visual Imediato
-
-    %% --- Submenu STOP ---
-    TelaInicial --> MenuStop : Seleciona "Stop"
-    MenuStop --> StopAll : Stop Tudo
-    MenuStop --> StopBackend : Stop Backend
-    MenuStop --> StopFrontend : Stop Frontend
-    MenuStop --> TelaInicial : [Voltar]
-    StopAll --> TelaInicial : Feedback Visual Imediato
-    StopBackend --> TelaInicial : Feedback Visual Imediato
-    StopFrontend --> TelaInicial : Feedback Visual Imediato
-
-    %% --- Submenu BUILD ---
-    TelaInicial --> MenuBuild : Seleciona "Build"
-    MenuBuild --> BuildFrontend : Build Frontend (React)
-    MenuBuild --> TelaInicial : [Voltar]
-    BuildFrontend --> MenuBuild : Concluído
-
-    %% --- Submenu TEST ---
-    TelaInicial --> MenuTest : Seleciona "Test"
-    MenuTest --> TestAll : Testar Tudo
-    MenuTest --> TestBackend : Pytest (Backend)
-    MenuTest --> TestFrontend : Vitest (Frontend)
-    MenuTest --> TelaInicial : [Voltar]
-    TestAll --> MenuTest : Concluído
-    TestBackend --> MenuTest : Concluído
-    TestFrontend --> MenuTest : Concluído
-
-    %% --- Submenu LOGS ---
-    TelaInicial --> MenuLogs : Seleciona "Logs"
-    MenuLogs --> TailBackend : Live Log do Backend
-    MenuLogs --> TailFrontend : Live Log do Frontend
-    MenuLogs --> TelaInicial : [Voltar]
-    TailBackend --> MenuLogs : Sai com Ctrl+C
-    TailFrontend --> MenuLogs : Sai com Ctrl+C
-    
-    TelaInicial --> [*] : Seleciona "Sair"
-```
+> [!WARNING]
+> **Análise Crítica: Paralelização via GPU para NEAT**
+> A ideia de usar a placa de vídeo (via PyTorch, CuPy ou JAX) para acelerar as redes neurais neste caso específico é um anti-padrão arquitetural. O algoritmo NEAT gera topologias heterogêneas e esparsas (cada "Bibite" tem uma rede neural de tamanho e formato diferentes). GPUs são eficientes apenas em multiplicações de matrizes densas e perfeitamente homogêneas em lote (batching).
+> Tentar forçar redes mutáveis para a GPU causará "Divergência de Warp" e gargalo severo de barramento PCI-Express (enviando posições da RAM para a VRAM e buscando resultados a 10 FPS). 
+> **Decisão Técnica:** O processamento numérico deve permanecer na CPU. Se houver gargalo matemático na propagação do sinal, utilizaremos compilação JIT (Just-In-Time via `Numba`) ou otimização vetorial profunda no `Numpy` (que já aproveita instruções AVX/SIMD do processador), mantendo o cache L1/L2 otimizado sem latência de VRAM.
 
 ## Proposed Changes
 
-### Scripts e Ferramentas
-#### [NEW] `manager.py` e `manager.bat` (Wrapper)
-- **Mudança de Abordagem:** O `manager.bat` será apenas um atalho que executa um script Python dedicado (`manager.py`).
-- **Interface TUI (Text User Interface):** O script Python utilizará bibliotecas como `questionary` e `rich` para fornecer uma interface bonita, com cores significativas (ex: Verde para Start, Vermelho para Stop) e **totalmente navegável pelas setas do teclado**.
-- **Painel de Status em Tempo Real:** Sempre que a **Tela Inicial** for exibida, o script fará uma checagem ativa (consultando os processos nas portas 8000 e 5173) e renderizará um cabeçalho listando todos os serviços do ecossistema ("Backend", "Frontend") e seus respectivos status atuais (Ex: `[ONLINE]` em verde, `[OFFLINE]` em cinza).
-- **Comportamento da Navegação:** A aplicação rodará em um loop contínuo. O Python tratará as exceções de `KeyboardInterrupt` globalmente para evitar crash da CLI caso o usuário aperte `Ctrl+C` bruscamente. Ao finalizar a cauda de logs com `Ctrl+C`, a aplicação retornará suavemente ao menu inicial.
-- **Ressalvas Críticas (Tech Lead):** O Start dos processos utilizará `subprocess.Popen` no Python (com a flag `CREATE_NO_WINDOW` no Windows) em vez de wrappers do PowerShell para maior estabilidade e isolamento. A rotina de Stop do Vite exigirá `taskkill /F /T` (Tree) para não gerar processos Node órfãos. A verificação das portas utilizará explicitamente um filtro pelo status `LISTENING` para evitar matar falsos-positivos.
+### [MODIFY] `backend/requirements.txt`
+Adicionar as dependências críticas de performance aprovadas na arquitetura:
+- `pymunk` (Para Motor Físico de Corpos Rígidos)
+- `numpy` (Para cálculo vetorial rápido do cérebro)
 
-### Infraestrutura de Testes
-#### [NEW] `backend/tests/__init__.py` e `backend/tests/test_simulation.py`
-- Setup inicial do `pytest` verificando a criação de entidades da simulação e conexões de banco de dados SQLite temporário.
-#### [MODIFY] `backend/requirements.txt`
-- Inclusão do pacote `pytest` e `httpx` (para testes de API).
-#### [MODIFY] `frontend/package.json` e `vite.config.js`
-- Adição da biblioteca `vitest` em devDependencies.
-- Inclusão do script `"test": "vitest run"` no package.json.
-#### [NEW] `frontend/src/tests/App.test.jsx`
-- Teste simples de unidade utilizando `vitest` para garantir que o Canvas renderiza corretamente sem quebrar.
+### [NEW] `backend/simulation/physics.py`
+Instancia o espaço `pymunk.Space()`, que assumirá a lógica primária de coordenadas, velocidade, massa, atrito e *joints*. Todas as classes interagirão com este Space. 
+
+### [NEW] `backend/simulation/rtneat_wrapper.py`
+Interface que carrega o modelo de rede neural do `neat-python` de forma "suja" (sob-demanda).
+- **Função `create_genome()`:** Instancia um "Paciente Zero" base (Geração 0) com inputs mapeados para 0 e visão restrita.
+- **Função `organic_crossover(g1, g2)`:** Executa os matemáticos do `DefaultReproduction.crossover()` no momento em que dois Bibitinhos adultos colidem.
+
+### [MODIFY] `backend/simulation/engine.py`
+- Refatoração do `step(dt)` para englobar `physics.space.step()`.
+- Oásis Migratórios (Spawns Abundantes): Substituir as comidas aleatórias por "manchas" (clusters) de fertilidade temporária que dropam ovos de `Food`. Oásis murcham usando `Time To Live` (TTL).
+- "Protocolo Jardim do Éden": Vigia global. Se `len(creatures) < MIN_POPULATION`, dropa um Oásis massivo em cima dos sobreviventes.
+
+### [MODIFY] `backend/simulation/creature.py`
+- Transformar a criatura em um `pymunk.Body` e `pymunk.Circle`/`Capsule`. 
+- **Fases da Vida:** Enumerador (EGG, JUVENILE, ADULT, ELDER) alterando os modificadores de energia.
+- **Cognição:** Criação do Array de 9 Posições para inputs Visuais. A cada Brain Tick (0.1s), usa o `Space.bb_query()` ao redor do `Body`, calcula o ângulo em arco-tangente e joga 1 (Se Oásis) e -1 (Se cegueira por mutação fraca) no Input Neural.
+- **Ações Físicas:** A saída neural aplica um "Impulso/Força" e "Torque" (volante de arcade) ao `pymunk.Body`, substituindo a matemática de seno/cosseno básica que existe hoje.
 
 ## Verification Plan
 
-### Testes pelo Deployer Runner Worker
-- Invocar o `deployer_runner` para executar `manager.bat` de forma que ele passe pela rotina de instalar as dependências de testes.
-- Rodar localmente via script `manager.bat` as funções e avaliar se o backend consegue iniciar as rotinas de log corretamente na pasta do repositório principal.
+### Testes a Executar
+1. **Qualidade Física:** Injetar 1000 cápsulas `pymunk` na engine para verificar se o consumo global (Física + API WebSocket) atende os 60 TPS prometidos.
+2. **Auditoria Neural:** O **Reviewer Worker** fará um pente fino no `rtneat_wrapper.py` garantindo que o Crossover ocorre sem vazamento de memória ou criação redundante de id_nodes do pacote externo.
+
+> [!CAUTION]
+> Ao mudar a arquitetura para Pymunk, a matemática no Frontend (Canvas) permanecerá inalterada, pois o WebSocket continuará enviando os JSON com `{x, y, radius}`, abstraindo as amarras e densidades dos objetos físicos em C. Isso garante escalabilidade perfeita.
+
+## Review 
+Aguardando o "De Acordo" do Usuário baseando-se no detalhamento acima.

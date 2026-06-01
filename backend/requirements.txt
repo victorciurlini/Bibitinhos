@@ -7,3 +7,5 @@ pytest
 httpx
 questionary
 rich
+pymunk
+numpy
