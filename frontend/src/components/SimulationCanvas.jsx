@@ -4,9 +4,20 @@ const SimulationCanvas = () => {
   const canvasRef = useRef(null);
   const latestWorldState = useRef(null);
   const animationFrameId = useRef(null);
+  const images = useRef({});
   const [status, setStatus] = useState('Connecting...');
 
   useEffect(() => {
+    const loadImg = (src) => {
+      const img = new Image();
+      img.src = src;
+      return img;
+    };
+    images.current.bibity = loadImg('/sprites/bibity.png');
+    images.current.egg = loadImg('/sprites/egg.png');
+    images.current.food = loadImg('/sprites/food.png');
+    images.current.fundo = loadImg('/sprites/fundo.png');
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -70,35 +81,55 @@ const SimulationCanvas = () => {
           ctx.translate(offsetX, offsetY);
           ctx.scale(scale, scale);
 
-          // Render state (placeholder logic based on possible generic simulation state)
+          // Renderizar fundo original
+          if (images.current.fundo && images.current.fundo.complete) {
+            ctx.drawImage(images.current.fundo, 0, 0, worldWidth, worldHeight);
+          }
+
+          // Render state
           if (data.creatures) {
             data.creatures.forEach(creature => {
-              ctx.fillStyle = creature.color || '#4CAF50';
-              ctx.beginPath();
-              ctx.arc(creature.x, creature.y, creature.radius || 5, 0, Math.PI * 2);
-              ctx.fill();
-              
-              // Draw direction indicator
-              if (creature.rotation !== undefined) {
-                const lineLength = (creature.radius || 5) * 2;
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = Math.max(1, 2 / scale); // visible line regardless of scale
+              if (images.current.bibity && images.current.bibity.complete && images.current.egg && images.current.egg.complete) {
+                const img = creature.life_stage === 'EGG' ? images.current.egg : images.current.bibity;
+                ctx.save();
+                ctx.translate(creature.x, creature.y);
+                ctx.rotate(creature.rotation || 0);
+                const s = (creature.radius || 10) * 2;
+                ctx.drawImage(img, -s/2, -s/2, s, s);
+                ctx.restore();
+              } else {
+                ctx.fillStyle = creature.color || '#4CAF50';
                 ctx.beginPath();
-                ctx.moveTo(creature.x, creature.y);
-                ctx.lineTo(
-                  creature.x + Math.cos(creature.rotation) * lineLength,
-                  creature.y + Math.sin(creature.rotation) * lineLength
-                );
-                ctx.stroke();
+                ctx.arc(creature.x, creature.y, creature.radius || 5, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw direction indicator
+                if (creature.rotation !== undefined) {
+                  const lineLength = (creature.radius || 5) * 2;
+                  ctx.strokeStyle = '#ffffff';
+                  ctx.lineWidth = Math.max(1, 2 / scale);
+                  ctx.beginPath();
+                  ctx.moveTo(creature.x, creature.y);
+                  ctx.lineTo(
+                    creature.x + Math.cos(creature.rotation) * lineLength,
+                    creature.y + Math.sin(creature.rotation) * lineLength
+                  );
+                  ctx.stroke();
+                }
               }
             });
           }
           if (data.foods) {
             data.foods.forEach(food => {
-              ctx.fillStyle = food.color || '#ffcc00';
-              ctx.beginPath();
-              ctx.arc(food.x, food.y, food.radius || 3, 0, Math.PI * 2);
-              ctx.fill();
+              if (images.current.food && images.current.food.complete) {
+                const s = (food.radius || 5) * 2;
+                ctx.drawImage(images.current.food, food.x - s/2, food.y - s/2, s, s);
+              } else {
+                ctx.fillStyle = food.color || '#ffcc00';
+                ctx.beginPath();
+                ctx.arc(food.x, food.y, food.radius || 3, 0, Math.PI * 2);
+                ctx.fill();
+              }
             });
           }
           
