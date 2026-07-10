@@ -5,6 +5,7 @@ import neat
 from enum import Enum
 
 from simulation.rtneat_wrapper import create_zero_genome, load_neat_config
+from simulation.physics import COLLISION_CATEGORY_CREATURE
 
 AGE_DEGRADATION_SCALE = 60.0
 MOTOR_TORQUE_SCALE = 20.0
@@ -36,7 +37,9 @@ class Creature:
         self.shape.elasticity = 0.5
         self.shape.friction = 0.5
         self.shape.filter = pymunk.ShapeFilter(categories=1)
-        
+        self.shape.collision_type = COLLISION_CATEGORY_CREATURE
+        self.shape.owner = self
+
         # We assume engine.physics.space exists; add body and shape
         if hasattr(engine, 'physics') and engine.physics is not None:
             engine.physics.space.add(self.body, self.shape)

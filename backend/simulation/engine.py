@@ -1,4 +1,4 @@
-from simulation.physics import PhysicsEngine
+from simulation.physics import PhysicsEngine, COLLISION_CATEGORY_CREATURE, COLLISION_CATEGORY_FOOD
 from simulation.food import Food
 from simulation.creature import Creature
 from simulation.sensors import compute_vision
@@ -9,6 +9,21 @@ BRAIN_TICK_INTERVAL = 1 / 10.0
 class SimulationEngine:
     def __init__(self):
         self.physics = PhysicsEngine()
+
+        def _on_creature_food_collision(arbiter, space, data):
+            """Handler de colisao criatura x comida: transfere energia e consome a comida."""
+            creature_shape, food_shape = arbiter.shapes
+            creature = creature_shape.owner
+            food = food_shape.owner
+            if food.is_active and creature.is_alive:
+                creature.energy = min(creature.energy + food.energy_value, creature.max_energy)
+                food.consume()
+            return True  # deixa a resolucao fisica normal acontecer (elasticity ja configurada nos shapes)
+
+        self.physics.space.on_collision(
+            COLLISION_CATEGORY_CREATURE, COLLISION_CATEGORY_FOOD,
+            begin=_on_creature_food_collision,
+        )
         self.creatures = []
         self.foods = []
         self.width = self.physics.map_width
