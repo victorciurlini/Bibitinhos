@@ -1,7 +1,7 @@
 # Bibites: Simulador de Vida Artificial Evolutiva
 
-![Status](https://img.shields.io/badge/Status-Refinamento%20Concluído-green)
-![Version](https://img.shields.io/badge/Versão-1.0-blue)
+![Status](https://img.shields.io/badge/Status-Épico%202%20Concluído-brightgreen)
+![Version](https://img.shields.io/badge/Versão-0.2.0-blue)
 ![Architecture](https://img.shields.io/badge/Arquitetura-Distribuída%20Cliente--Servidor-blue)
 
 ## 📊 Informações Técnicas
@@ -9,11 +9,37 @@
 | Aspecto | Detalhes |
 |--------|----------|
 | **Padrão Arquitetural** | Distribuído (Cliente-Servidor) / OOP |
-| **Backend** | Python + Pymunk (Motor Físico) |
-| **Frontend** | Angular + Canvas/WebGL |
-| **Comunicação** | WebSockets (60 ticks/segundo) |
-| **Conteinerização** | Docker |
-| **Execução Headless** | Suportada com aceleração de tempo |
+| **Backend** | Python 3.10 + FastAPI + Pymunk (Motor Físico) + neat-python (IA) |
+| **Frontend** | React + Vite + Canvas 2D *(este README planejava Angular/WebGL originalmente — o time optou por React na implementação real)* |
+| **Comunicação** | WebSocket, broadcast a 30 FPS (física); cérebro (rtNEAT) roda num brain tick de 10 FPS dissociado, cacheado entre frames |
+| **Conteinerização** | Docker — planejado, ainda não implementado (Milestone 4) |
+| **Execução Headless** | Planejada, ainda não implementada (Milestone 4) |
+
+---
+
+## ✅ Status Atual da Implementação (2026-07-10)
+
+O **Épico 2 — Bibitinhos Core (Física e rtNEAT)** está concluído. Todas as tasks abaixo estão implementadas, testadas (53 testes automatizados, `backend/tests/`) e mergeadas em `develop`:
+
+| Task | Entrega |
+|---|---|
+| `BIT-00` | Config do neat-python (16 inputs / 4 outputs) + loader cacheado em `rtneat_wrapper.py` |
+| `BIT-01` | Visão: 9 cones binários via `space.bb_query()` + `arctan2`, atualizados no brain tick (10 FPS) |
+| `BIT-02` | Cérebro conectado: `neat.nn.FeedForwardNetwork` real decide os motores a cada brain tick, aplicado a cada frame de física |
+| `BIT-03` | Alimentação: colisão criatura×comida transfere energia e consome o alimento |
+| `BIT-04` | Reprodução sexuada: colisão de dois ADULT com `Action_Mate` ativo gera um `EGG` via crossover + mutação do NEAT |
+| `BIT-05` | Metabolismo passivo por fase de vida — comer passou a impactar a longevidade de forma mensurável |
+| `BIT-06` | Oásis migratórios com TTL + regra real do "Jardim do Éden" (população baixa → oásis denso nos sobreviventes) |
+| `BIT-07` | Locomoção orientada a direção: sem propulsão reversa e sem deslizamento lateral por inércia — sempre para frente, fazendo curvas |
+
+**Principais divergências conhecidas entre este documento (visão de produto original) e a implementação real:**
+- Frontend é **React**, não Angular.
+- Colisor dos Bibites é **Círculo** (`pymunk.Circle`), não Cápsula (seção 3.2) — simplificação ainda não revisitada.
+- Não há **multiprocessing** para cálculos genéticos (seção 2.1) — o motor roda num único loop `asyncio`.
+- `Hormonal_Level`/`Biological_Clock` (seção 6.1) existem como placeholders fixos em `0.0` no contrato de I/O do NEAT — ainda não há sistema de hormônios nem relógio biológico real.
+- Milestone 2 (seção 8) foi entregue com rtNEAT real desde o início, pulando a etapa de "rede neural fixa provisória"/"reprodução assexuada (clonagem)".
+
+Próximos passos: Milestone 4 (painéis de métricas, inspetor de rede neural, modo headless, Docker) — ver seção 8.
 
 ---
 
@@ -258,7 +284,7 @@ Bibite (Extends Entity)
 
 ## 8. Plano de Implementação Incremental
 
-### Milestone 1: O Aquário Físico e a Ponte de Dados
+### Milestone 1: O Aquário Físico e a Ponte de Dados ✅ Concluído
 
 **Tema**: Infraestrutura física e comunicação
 
@@ -274,7 +300,7 @@ Bibite (Extends Entity)
 
 ---
 
-### Milestone 2: O Despertar Sensorial
+### Milestone 2: O Despertar Sensorial ✅ Concluído (via rtNEAT real, sem etapa intermediária de IA fixa)
 
 **Tema**: IA e Integração Sensório-Motora
 
@@ -291,7 +317,7 @@ Bibite (Extends Entity)
 
 ---
 
-### Milestone 3: A Dança do Acasalamento (rtNEAT)
+### Milestone 3: A Dança do Acasalamento (rtNEAT) ✅ Concluído (exceto validação de estabilidade 24h+ e genes adormecidos de expansão visual)
 
 **Tema**: Evolução genética e reprodução
 
@@ -309,7 +335,7 @@ Bibite (Extends Entity)
 
 ---
 
-### Milestone 4: Observabilidade e Otimização Final
+### Milestone 4: Observabilidade e Otimização Final ⏳ Próximo passo
 
 **Tema**: Interface, Observabilidade e Deploy
 

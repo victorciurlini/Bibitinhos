@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_linear_linear__save_issue",
+      "mcp__plugin_linear_linear__get_issue",
+      "mcp__plugin_linear_linear__list_issues",
+      "mcp__plugin_linear_linear__list_issue_statuses",
+      "mcp__plugin_linear_linear__save_comment",
+      "mcp__plugin_linear_linear__list_issue_labels",
+      "mcp__plugin_linear_linear__list_teams",
+      "Skill(update-config)",
+      "PowerShell(node --version)",
+      "PowerShell(npm --version)",
+      "PowerShell(npm install -g @anthropic-ai/claude-code)",
+      "PowerShell(claude --version)",
+      "PowerShell(npm config get prefix)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(powershell -ExecutionPolicy Bypass -File \"C:\\Users\\victo.000\\OneDrive\\Documentos\\python\\Bibitinhos\\manager.bat\" *)",
+      "PowerShell(Invoke-WebRequest -Uri \"http://localhost:8001/*)",
+      "WebFetch(domain:www.msn.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:api.github.com)",
+      "WebSearch"
+    ]
+  }
+}

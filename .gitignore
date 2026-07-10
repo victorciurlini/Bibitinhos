@@ -7,6 +7,8 @@ backend/venv/
 *.db
 backend.log
 frontend.log
+backend.pid
+frontend.pid
 
 # Node / React Vite
 frontend/node_modules/
