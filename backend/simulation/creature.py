@@ -18,6 +18,16 @@ class LifeStage(Enum):
     ADULT = 2
     ELDER = 3
 
+# Custo metabolico passivo por segundo, so por estar viva (energia/segundo).
+# Taxas tunaveis, estritamente crescentes: cria pressao real para aprender a comer
+# e "longevidade" como metrica emergente (ELDER degrada mais rapido).
+METABOLISM_RATE_BY_STAGE = {
+    LifeStage.EGG: 0.0,
+    LifeStage.JUVENILE: 0.3,
+    LifeStage.ADULT: 0.8,
+    LifeStage.ELDER: 2.0,
+}
+
 class Creature:
     def __init__(self, engine, x=None, y=None, genome=None):
         self.engine = engine
@@ -109,7 +119,8 @@ class Creature:
             self.body.torque = self.motor_torque * MOTOR_TORQUE_SCALE
             motor_cost = abs(self.motor_forward) * self.speed * 0.1 + abs(self.motor_torque) * self.size * 0.05
 
-        self.energy -= dt * motor_cost
+        metabolism_cost = METABOLISM_RATE_BY_STAGE[self.life_stage]
+        self.energy -= dt * (motor_cost + metabolism_cost)
         if self.energy <= 0:
             self.is_alive = False
             

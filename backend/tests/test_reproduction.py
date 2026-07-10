@@ -1,6 +1,10 @@
+import pytest
+
 import simulation.engine as engine_module
-from simulation.creature import Creature, LifeStage
+from simulation.creature import Creature, LifeStage, METABOLISM_RATE_BY_STAGE
 from simulation.engine import SimulationEngine, REPRODUCTION_ENERGY_COST, MIN_ENERGY_TO_MATE
+
+DT = 1 / 30.0
 
 
 def _make_adult_pair(engine, x=1000, y=1000, offset=5, energy=100.0, action_mate=True):
@@ -26,8 +30,9 @@ def test_adult_pair_with_action_mate_reproduces_on_collision():
     assert len(engine.creatures) == count_before + 1
     child = [c for c in engine.creatures if c not in (c1, c2)][0]
     assert child.life_stage == LifeStage.EGG
-    assert c1.energy == 100.0 - REPRODUCTION_ENERGY_COST
-    assert c2.energy == 100.0 - REPRODUCTION_ENERGY_COST
+    expected = 100.0 - REPRODUCTION_ENERGY_COST - DT * METABOLISM_RATE_BY_STAGE[LifeStage.ADULT]
+    assert c1.energy == pytest.approx(expected)
+    assert c2.energy == pytest.approx(expected)
     assert c1.mate_cooldown > 0
     assert c2.mate_cooldown > 0
 
@@ -77,8 +82,8 @@ def test_action_mate_false_prevents_reproduction():
     engine.step(1 / 30.0)
 
     assert len(engine.creatures) == count_before
-    assert c1.energy == 100.0
-    assert c2.energy == 100.0
+    assert c1.energy == pytest.approx(100.0 - DT * METABOLISM_RATE_BY_STAGE[LifeStage.ADULT])
+    assert c2.energy == pytest.approx(100.0 - DT * METABOLISM_RATE_BY_STAGE[LifeStage.ADULT])
 
 
 def test_juvenile_prevents_reproduction():
@@ -90,8 +95,8 @@ def test_juvenile_prevents_reproduction():
     engine.step(1 / 30.0)
 
     assert len(engine.creatures) == count_before
-    assert c1.energy == 100.0
-    assert c2.energy == 100.0
+    assert c1.energy == pytest.approx(100.0 - DT * METABOLISM_RATE_BY_STAGE[LifeStage.ADULT])
+    assert c2.energy == pytest.approx(100.0 - DT * METABOLISM_RATE_BY_STAGE[LifeStage.JUVENILE])
 
 
 def test_low_energy_prevents_reproduction():
@@ -103,8 +108,8 @@ def test_low_energy_prevents_reproduction():
     engine.step(1 / 30.0)
 
     assert len(engine.creatures) == count_before
-    assert c1.energy == 100.0
-    assert c2.energy == MIN_ENERGY_TO_MATE - 1.0
+    assert c1.energy == pytest.approx(100.0 - DT * METABOLISM_RATE_BY_STAGE[LifeStage.ADULT])
+    assert c2.energy == pytest.approx(MIN_ENERGY_TO_MATE - 1.0 - DT * METABOLISM_RATE_BY_STAGE[LifeStage.ADULT])
 
 
 def test_cooldown_prevents_repeated_reproduction_across_consecutive_steps():
