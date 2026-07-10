@@ -43,6 +43,7 @@ class Creature:
         self.is_alive = True
         self.life_stage = LifeStage.EGG
         self.age = 0.0
+        self.vision = [0.0] * 9
         
     def update(self, dt, engine):
         if not self.is_alive:
@@ -84,5 +85,6 @@ class Creature:
             "color": "#00ff00" if self.diet == "herbivore" else "#ff0000",
             "energy": self.energy,
             "diet": self.diet,
-            "life_stage": self.life_stage.name
+            "life_stage": self.life_stage.name,
+            "vision": self.vision
         }

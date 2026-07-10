@@ -1,7 +1,10 @@
 from simulation.physics import PhysicsEngine
 from simulation.food import Food
 from simulation.creature import Creature
+from simulation.sensors import compute_vision
 import random
+
+BRAIN_TICK_INTERVAL = 1 / 10.0
 
 class SimulationEngine:
     def __init__(self):
@@ -12,6 +15,7 @@ class SimulationEngine:
         self.height = self.physics.map_height
         self.current_generation = 1
         self.time_elapsed = 0
+        self._brain_accumulator = 0.0
 
     def add_creature(self, creature):
         self.creatures.append(creature)
@@ -33,11 +37,19 @@ class SimulationEngine:
                 y = random.uniform(0, self.height)
                 self.add_food(Food(self, x, y))
 
-        # 2. Atualizar todas as criaturas
+        # 2. Brain tick (10 FPS, dissociado do tick de fisica): atualiza visao
+        self._brain_accumulator += dt
+        if self._brain_accumulator >= BRAIN_TICK_INTERVAL:
+            self._brain_accumulator -= BRAIN_TICK_INTERVAL
+            for creature in self.creatures:
+                if creature.is_alive:
+                    creature.vision = compute_vision(creature, self)
+
+        # 3. Atualizar todas as criaturas
         for creature in self.creatures:
             creature.update(dt, self)
 
-        # 3. Remover criaturas mortas
+        # 4. Remover criaturas mortas
         alive_creatures = []
         for c in self.creatures:
             if c.is_alive:
@@ -46,10 +58,10 @@ class SimulationEngine:
                 c.die()
         self.creatures = alive_creatures
 
-        # 4. Remover comida consumida
+        # 5. Remover comida consumida
         self.foods = [f for f in self.foods if f.is_active]
 
-        # 5. Respawn (Jardim do Éden)
+        # 6. Respawn (Jardim do Éden)
         if len(self.creatures) == 0:
             for _ in range(10):
                 self.add_creature(Creature(self))
