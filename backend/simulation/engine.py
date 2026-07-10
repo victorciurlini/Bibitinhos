@@ -16,12 +16,18 @@ class SimulationEngine:
         self.current_generation = 1
         self.time_elapsed = 0
         self._brain_accumulator = 0.0
+        self._next_genome_id = 0
 
     def add_creature(self, creature):
         self.creatures.append(creature)
 
     def add_food(self, food):
         self.foods.append(food)
+
+    def next_genome_id(self):
+        """Contador monotonico de genome id, usado para criar genomas zero (Gen 0)."""
+        self._next_genome_id += 1
+        return self._next_genome_id
 
     def step(self, dt):
         """Atualiza um frame da simulação."""
@@ -44,6 +50,7 @@ class SimulationEngine:
             for creature in self.creatures:
                 if creature.is_alive:
                     creature.vision = compute_vision(creature, self)
+                    creature.think(self)
 
         # 3. Atualizar todas as criaturas
         for creature in self.creatures:

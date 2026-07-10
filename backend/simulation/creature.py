@@ -1,7 +1,15 @@
 import math
 import random
 import pymunk
+import neat
 from enum import Enum
+
+from simulation.rtneat_wrapper import create_zero_genome, load_neat_config
+
+AGE_DEGRADATION_SCALE = 60.0
+MOTOR_TORQUE_SCALE = 20.0
+KINETIC_LINEAR_NORM = 200.0
+KINETIC_ANGULAR_NORM = 10.0
 
 class LifeStage(Enum):
     EGG = 0
@@ -10,7 +18,7 @@ class LifeStage(Enum):
     ELDER = 3
 
 class Creature:
-    def __init__(self, engine, x=None, y=None):
+    def __init__(self, engine, x=None, y=None, genome=None):
         self.engine = engine
         
         # Pymunk Physics integration
@@ -44,13 +52,41 @@ class Creature:
         self.life_stage = LifeStage.EGG
         self.age = 0.0
         self.vision = [0.0] * 9
-        
+
+        # Cérebro NEAT: genoma injetado (reprodução futura) ou genoma zero (Gen 0)
+        self.config = load_neat_config()
+        self.genome = genome if genome is not None else create_zero_genome(engine.next_genome_id(), self.config)
+        self.net = neat.nn.FeedForwardNetwork.create(self.genome, self.config)
+
+        self.motor_forward = 0.0
+        self.motor_torque = 0.0
+        self.action_grab_drop = False
+        self.action_mate = False
+        self.is_holding = False  # placeholder do Load_Sensor; mecanica de grab fora de escopo desta task
+
+    def think(self, engine):
+        """Roda a rede neural a 10 FPS (brain tick) e cacheia as 4 saidas de atuadores."""
+        inputs = list(self.vision) + [
+            min(self.energy / self.max_energy, 1.0),                                    # Energy_Level
+            min(self.age / AGE_DEGRADATION_SCALE, 1.0),                                  # Age_Degradation
+            0.0,                                                                         # Hormonal_Level (sistema nao existe ainda)
+            0.0,                                                                         # Biological_Clock (sistema nao existe ainda)
+            1.0 if self.is_holding else 0.0,                                             # Load_Sensor
+            max(-1.0, min(1.0, self.body.velocity.length / KINETIC_LINEAR_NORM)),        # Kinetic_Feedback linear
+            max(-1.0, min(1.0, self.body.angular_velocity / KINETIC_ANGULAR_NORM)),      # Kinetic_Feedback angular
+        ]
+        outputs = self.net.activate(inputs)
+        self.motor_forward = outputs[0]
+        self.motor_torque = outputs[1]
+        self.action_grab_drop = outputs[2] > 0.0
+        self.action_mate = outputs[3] > 0.0
+
     def update(self, dt, engine):
         if not self.is_alive:
             return
 
         self.age += dt
-        
+
         # Atualizar estágios de vida baseados na idade (mockado)
         if self.age > 30:
             self.life_stage = LifeStage.ELDER
@@ -59,14 +95,16 @@ class Creature:
         elif self.age > 2:
             self.life_stage = LifeStage.JUVENILE
 
-        # Movimento básico: impulso para frente localmente
-        # apply_impulse_at_local_point takes (impulse_x, impulse_y) relative to body
+        # Movimento vem da rede neural (cacheado em think(), 10 FPS), reaplicado a cada frame de fisica
+        # EGG nao move nem paga custo de motor: o output do cerebro nunca e aplicado fisicamente nesse estagio
+        motor_cost = 0.0
         if self.life_stage != LifeStage.EGG:
-            forward_impulse = (self.speed * dt, 0)
+            forward_impulse = (self.motor_forward * self.speed * dt, 0)
             self.body.apply_impulse_at_local_point(forward_impulse, (0, 0))
-            
-        # Consumo de energia
-        self.energy -= dt * (self.speed * 0.1 + self.size * 0.05)
+            self.body.torque = self.motor_torque * MOTOR_TORQUE_SCALE
+            motor_cost = abs(self.motor_forward) * self.speed * 0.1 + abs(self.motor_torque) * self.size * 0.05
+
+        self.energy -= dt * motor_cost
         if self.energy <= 0:
             self.is_alive = False
             
