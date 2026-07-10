@@ -1,4 +1,6 @@
-from simulation.creature import Creature
+import pytest
+
+from simulation.creature import Creature, LifeStage, METABOLISM_RATE_BY_STAGE
 from simulation.engine import SimulationEngine
 
 
@@ -48,7 +50,8 @@ def test_update_energy_cost_proportional_to_motor_magnitude():
     quiet_energy_before = quiet.energy
     quiet.update(1 / 30.0, engine)
     quiet_cost = quiet_energy_before - quiet.energy
-    assert quiet_cost == 0.0
+    expected_quiet_cost = (1 / 30.0) * METABOLISM_RATE_BY_STAGE[LifeStage.ADULT]
+    assert quiet_cost == pytest.approx(expected_quiet_cost)
 
     active = Creature(engine)
     active.life_stage = active.life_stage.__class__.ADULT
