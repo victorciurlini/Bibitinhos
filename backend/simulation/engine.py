@@ -3,6 +3,17 @@ from simulation.food import Food
 from simulation.creature import Creature, LifeStage
 from simulation.sensors import compute_vision
 from simulation.rtneat_wrapper import organic_crossover, mutate_genome
+from simulation.oasis import (
+    Oasis,
+    MAX_ACTIVE_OASES,
+    OASIS_SPAWN_CHANCE_PER_FRAME,
+    OASIS_FOOD_SPAWN_CHANCE,
+    MAX_TOTAL_FOOD,
+    EDEN_POPULATION_THRESHOLD,
+    EDEN_OASIS_RADIUS,
+    EDEN_OASIS_TTL,
+    EDEN_OASIS_FOOD_CAP,
+)
 import random
 
 BRAIN_TICK_INTERVAL = 1 / 10.0
@@ -72,6 +83,8 @@ class SimulationEngine:
         self.time_elapsed = 0
         self._brain_accumulator = 0.0
         self._next_genome_id = 0
+        self.oases = []
+        self._eden_active = False
 
     def add_creature(self, creature):
         self.creatures.append(creature)
@@ -91,12 +104,29 @@ class SimulationEngine:
         # Atualizar Física
         self.physics.step(dt)
         
-        # 1. Spawn aleatório de comida
-        if len(self.foods) < 50:
-            if random.random() < 0.05: # 5% chance por frame
-                x = random.uniform(0, self.width)
-                y = random.uniform(0, self.height)
-                self.add_food(Food(self, x, y))
+        # 1. Ciclo de vida dos oasis: expira os antigos, nasce novos, comida so dentro deles
+        for oasis in self.oases:
+            oasis.ttl -= dt
+        self.oases = [o for o in self.oases if o.ttl > 0]
+
+        if len(self.oases) < MAX_ACTIVE_OASES and random.random() < OASIS_SPAWN_CHANCE_PER_FRAME:
+            x = random.uniform(0, self.width)
+            y = random.uniform(0, self.height)
+            self.oases.append(Oasis(x, y))
+
+        if len(self.foods) < MAX_TOTAL_FOOD:
+            for oasis in self.oases:
+                food_in_oasis = sum(
+                    1 for f in self.foods
+                    if (f.body.position.x - oasis.x) ** 2 + (f.body.position.y - oasis.y) ** 2 <= oasis.radius ** 2
+                )
+                if food_in_oasis < oasis.food_cap and random.random() < OASIS_FOOD_SPAWN_CHANCE:
+                    fx, fy = oasis.random_point_inside()
+                    fx = max(0, min(self.width, fx))
+                    fy = max(0, min(self.height, fy))
+                    self.add_food(Food(self, fx, fy))
+                    if len(self.foods) >= MAX_TOTAL_FOOD:
+                        break
 
         # 2. Brain tick (10 FPS, dissociado do tick de fisica): atualiza visao
         self._brain_accumulator += dt
@@ -123,10 +153,22 @@ class SimulationEngine:
         # 5. Remover comida consumida
         self.foods = [f for f in self.foods if f.is_active]
 
-        # 6. Respawn (Jardim do Éden)
+        # 6. Jardim do Eden: fallback de extincao total (populacao == 0, nao coberto pelo README)
+        # + regra real do README (populacao < 10, com sobreviventes: oasis denso nas posicoes deles)
         if len(self.creatures) == 0:
             for _ in range(10):
                 self.add_creature(Creature(self))
+            self._eden_active = False
+        elif len(self.creatures) < EDEN_POPULATION_THRESHOLD:
+            if not self._eden_active:
+                self._eden_active = True
+                for creature in self.creatures:
+                    self.oases.append(Oasis(
+                        creature.body.position.x, creature.body.position.y,
+                        radius=EDEN_OASIS_RADIUS, ttl=EDEN_OASIS_TTL, food_cap=EDEN_OASIS_FOOD_CAP,
+                    ))
+        else:
+            self._eden_active = False
 
 
     def get_state(self):
@@ -136,5 +178,6 @@ class SimulationEngine:
             "width": self.width,
             "height": self.height,
             "creatures": [c.to_dict() for c in self.creatures],
-            "foods": [f.to_dict() for f in self.foods]
+            "foods": [f.to_dict() for f in self.foods],
+            "oases": [o.to_dict() for o in self.oases]
         }
