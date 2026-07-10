@@ -1,10 +1,14 @@
 from simulation.physics import PhysicsEngine, COLLISION_CATEGORY_CREATURE, COLLISION_CATEGORY_FOOD
 from simulation.food import Food
-from simulation.creature import Creature
+from simulation.creature import Creature, LifeStage
 from simulation.sensors import compute_vision
+from simulation.rtneat_wrapper import organic_crossover, mutate_genome
 import random
 
 BRAIN_TICK_INTERVAL = 1 / 10.0
+REPRODUCTION_ENERGY_COST = 30.0
+REPRODUCTION_COOLDOWN = 10.0
+MIN_ENERGY_TO_MATE = 50.0
 
 class SimulationEngine:
     def __init__(self):
@@ -24,6 +28,42 @@ class SimulationEngine:
             COLLISION_CATEGORY_CREATURE, COLLISION_CATEGORY_FOOD,
             begin=_on_creature_food_collision,
         )
+
+        def _on_creature_creature_collision(arbiter, space, data):
+            """Handler de colisao criatura x criatura: reproducao sexuada via Action_Mate."""
+            shape_a, shape_b = arbiter.shapes
+            c1, c2 = shape_a.owner, shape_b.owner
+            if not (c1.is_alive and c2.is_alive):
+                return True
+            if c1.life_stage != LifeStage.ADULT or c2.life_stage != LifeStage.ADULT:
+                return True
+            if c1.mate_cooldown > 0 or c2.mate_cooldown > 0:
+                return True
+            if not (c1.action_mate and c2.action_mate):
+                return True
+            if c1.energy < MIN_ENERGY_TO_MATE or c2.energy < MIN_ENERGY_TO_MATE:
+                return True
+
+            c1.energy -= REPRODUCTION_ENERGY_COST
+            c2.energy -= REPRODUCTION_ENERGY_COST
+            c1.mate_cooldown = REPRODUCTION_COOLDOWN
+            c2.mate_cooldown = REPRODUCTION_COOLDOWN
+
+            child_id = self.next_genome_id()
+            child_genome = organic_crossover(c1.genome, c2.genome, child_id, c1.config)
+            mutate_genome(child_genome, c1.config)
+
+            child_x = (c1.body.position.x + c2.body.position.x) / 2
+            child_y = (c1.body.position.y + c2.body.position.y) / 2
+            child = Creature(self, child_x, child_y, genome=child_genome)
+            self.add_creature(child)
+            return True
+
+        self.physics.space.on_collision(
+            COLLISION_CATEGORY_CREATURE, COLLISION_CATEGORY_CREATURE,
+            begin=_on_creature_creature_collision,
+        )
+
         self.creatures = []
         self.foods = []
         self.width = self.physics.map_width
