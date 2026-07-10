@@ -11,6 +11,7 @@ AGE_DEGRADATION_SCALE = 60.0
 MOTOR_TORQUE_SCALE = 20.0
 KINETIC_LINEAR_NORM = 200.0
 KINETIC_ANGULAR_NORM = 10.0
+LATERAL_GRIP_RATE = 20.0  # taxa de amortecimento lateral (1/segundo), tunavel
 
 class LifeStage(Enum):
     EGG = 0
@@ -114,10 +115,18 @@ class Creature:
         # EGG nao move nem paga custo de motor: o output do cerebro nunca e aplicado fisicamente nesse estagio
         motor_cost = 0.0
         if self.life_stage != LifeStage.EGG:
-            forward_impulse = (self.motor_forward * self.speed * dt, 0)
+            forward_thrust = max(0.0, self.motor_forward)  # sem propulsao deliberada pra tras
+            forward_impulse = (forward_thrust * self.speed * dt, 0)
             self.body.apply_impulse_at_local_point(forward_impulse, (0, 0))
             self.body.torque = self.motor_torque * MOTOR_TORQUE_SCALE
-            motor_cost = abs(self.motor_forward) * self.speed * 0.1 + abs(self.motor_torque) * self.size * 0.05
+            motor_cost = forward_thrust * self.speed * 0.1 + abs(self.motor_torque) * self.size * 0.05
+
+            # Grip lateral: elimina deslizamento de lado por inercia, mantendo a fisica real
+            # (colisoes ainda empurram a criatura; ela so nao desliza de lado por conta propria)
+            local_velocity = self.body.velocity.rotated(-self.body.angle)  # x=frente, y=lado
+            lateral_damping = max(0.0, 1.0 - LATERAL_GRIP_RATE * dt)
+            damped_local_velocity = pymunk.Vec2d(local_velocity.x, local_velocity.y * lateral_damping)
+            self.body.velocity = damped_local_velocity.rotated(self.body.angle)
 
         metabolism_cost = METABOLISM_RATE_BY_STAGE[self.life_stage]
         self.energy -= dt * (motor_cost + metabolism_cost)
