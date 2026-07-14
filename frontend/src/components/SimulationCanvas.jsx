@@ -40,7 +40,6 @@ const SimulationCanvas = () => {
     images.current.bibity = loadImg('/sprites/bibity.png');
     images.current.egg = loadImg('/sprites/egg.png');
     images.current.food = loadImg('/sprites/food.png');
-    images.current.fundo = loadImg('/sprites/fundo.png');
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -52,7 +51,7 @@ const SimulationCanvas = () => {
       canvas.width = canvas.parentElement.clientWidth || 800;
       canvas.height = canvas.parentElement.clientHeight || 600;
       // Draw initial dark background
-      ctx.fillStyle = '#1e1e1e';
+      ctx.fillStyle = '#0a1e2e';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     };
     
@@ -89,7 +88,7 @@ const SimulationCanvas = () => {
       
       if (data) {
         // Clear canvas
-        ctx.fillStyle = '#1e1e1e';
+        ctx.fillStyle = '#0a1e2e';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         const worldWidth = data.width || 2000;
@@ -105,10 +104,12 @@ const SimulationCanvas = () => {
           ctx.translate(offsetX, offsetY);
           ctx.scale(scale, scale);
 
-          // Renderizar fundo original
-          if (images.current.fundo && images.current.fundo.complete) {
-            ctx.drawImage(images.current.fundo, 0, 0, worldWidth, worldHeight);
-          }
+          // Fundo aquatico do mundo: gradiente vertical (mais claro no topo, mais fundo embaixo)
+          const worldGradient = ctx.createLinearGradient(0, 0, 0, worldHeight);
+          worldGradient.addColorStop(0, '#1a5079');
+          worldGradient.addColorStop(1, '#0d2c44');
+          ctx.fillStyle = worldGradient;
+          ctx.fillRect(0, 0, worldWidth, worldHeight);
 
           // Render state
           if (data.creatures) {
@@ -218,7 +219,7 @@ const SimulationCanvas = () => {
       </div>
       <canvas 
         ref={canvasRef} 
-        style={{ display: 'block', width: '100%', height: '100%', backgroundColor: '#1e1e1e' }}
+        style={{ display: 'block', width: '100%', height: '100%', backgroundColor: '#0a1e2e' }}
       />
     </div>
   );
