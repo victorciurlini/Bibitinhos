@@ -1,11 +1,35 @@
 import React, { useRef, useEffect, useState } from 'react';
 
+const OFFSCREEN_TINT_SIZE = 64;
+const TINT_ALPHA = 0.55;
+
 const SimulationCanvas = () => {
   const canvasRef = useRef(null);
   const latestWorldState = useRef(null);
   const animationFrameId = useRef(null);
   const images = useRef({});
+  const tintCanvasRef = useRef(null);
   const [status, setStatus] = useState('Connecting...');
+
+  const drawTintedSprite = (ctx, img, size, color) => {
+    if (!tintCanvasRef.current) {
+      const c = document.createElement('canvas');
+      c.width = OFFSCREEN_TINT_SIZE;
+      c.height = OFFSCREEN_TINT_SIZE;
+      tintCanvasRef.current = c;
+    }
+    const off = tintCanvasRef.current;
+    const octx = off.getContext('2d');
+    octx.clearRect(0, 0, OFFSCREEN_TINT_SIZE, OFFSCREEN_TINT_SIZE);
+    octx.drawImage(img, 0, 0, OFFSCREEN_TINT_SIZE, OFFSCREEN_TINT_SIZE);
+    octx.globalCompositeOperation = 'source-atop';
+    octx.globalAlpha = TINT_ALPHA;
+    octx.fillStyle = color;
+    octx.fillRect(0, 0, OFFSCREEN_TINT_SIZE, OFFSCREEN_TINT_SIZE);
+    octx.globalAlpha = 1;
+    octx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(off, -size / 2, -size / 2, size, size);
+  };
 
   useEffect(() => {
     const loadImg = (src) => {
@@ -95,7 +119,7 @@ const SimulationCanvas = () => {
                 ctx.translate(creature.x, creature.y);
                 ctx.rotate(creature.rotation || 0);
                 const s = (creature.radius || 10) * 2;
-                ctx.drawImage(img, -s/2, -s/2, s, s);
+                drawTintedSprite(ctx, img, s, creature.color || '#4CAF50');
                 ctx.restore();
               } else {
                 ctx.fillStyle = creature.color || '#4CAF50';
