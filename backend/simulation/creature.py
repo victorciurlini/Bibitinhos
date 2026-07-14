@@ -12,6 +12,9 @@ MOTOR_TORQUE_SCALE = 20.0
 KINETIC_LINEAR_NORM = 200.0
 KINETIC_ANGULAR_NORM = 10.0
 LATERAL_GRIP_RATE = 20.0  # taxa de amortecimento lateral (1/segundo), tunavel
+# Nota (BIT-17): mantido inalterado ao introduzir arrasto de agua - corrige derrapagem
+# lateral por rotacao (BIT-07), ortogonal ao arrasto longitudinal; reduzi-lo abaixo de
+# ~11.1 quebra test_locomotion.py::test_lateral_velocity_is_damped_towards_zero_over_frames.
 CREATURE_MASS = 1.0
 STARTING_ENERGY = 75.0  # 75% de max_energy: crias precisam comer antes de poder se reproduzir
 

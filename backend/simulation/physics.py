@@ -8,7 +8,8 @@ COLLISION_CATEGORY_WALL = 4
 def create_space():
     space = pymunk.Space()
     space.gravity = (0.0, 0.0)
-    space.damping = 0.9
+    space.damping = 0.35  # arrasto tipo agua: retem ~35% da velocidade por segundo sem propulsao
+                          # (era 0.9 = ~90%/s, quase sem arrasto perceptivel - sensacao "flutuante")
     
     # Define 2000x2000 map boundaries
     map_width = 2000
