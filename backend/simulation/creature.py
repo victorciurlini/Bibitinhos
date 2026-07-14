@@ -13,6 +13,7 @@ KINETIC_LINEAR_NORM = 200.0
 KINETIC_ANGULAR_NORM = 10.0
 LATERAL_GRIP_RATE = 20.0  # taxa de amortecimento lateral (1/segundo), tunavel
 CREATURE_MASS = 1.0
+STARTING_ENERGY = 75.0  # 75% de max_energy: crias precisam comer antes de poder se reproduzir
 
 class LifeStage(Enum):
     EGG = 0
@@ -108,7 +109,7 @@ class Creature:
         # Atributos baseados em "DNA" (mockados por enquanto)
         self.speed = 50.0
         self.size = 10.0
-        self.energy = 100.0
+        self.energy = STARTING_ENERGY
         self.max_energy = 100.0
         self.diet = 'herbivore' # ou 'carnivore'
         

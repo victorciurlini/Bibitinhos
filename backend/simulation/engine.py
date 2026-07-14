@@ -17,11 +17,11 @@ from simulation.oasis import (
 import random
 
 BRAIN_TICK_INTERVAL = 1 / 10.0
-REPRODUCTION_ENERGY_COST = 30.0
+REPRODUCTION_ENERGY_COST = 50.0
 REPRODUCTION_COOLDOWN = 10.0
-MIN_ENERGY_TO_MATE = 50.0
-MIN_ENERGY_TO_REPRODUCE_ASEXUALLY = 70.0
-ASEXUAL_REPRODUCTION_ENERGY_COST = 50.0
+MIN_ENERGY_TO_MATE = 100.0
+MIN_ENERGY_TO_REPRODUCE_ASEXUALLY = 100.0  # teto de max_energy: nao da pra exigir mais que a sexuada
+ASEXUAL_REPRODUCTION_ENERGY_COST = 70.0  # mantem o delta de +20 sobre a sexuada (era 30+20=50, agora 50+20=70)
 ASEXUAL_REPRODUCTION_COOLDOWN = 20.0  # 2x o cooldown sexuado: via solo nao deve dominar sobre achar parceiro
 
 class SimulationEngine:
