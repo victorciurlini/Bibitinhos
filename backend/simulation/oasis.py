@@ -2,6 +2,7 @@ import math
 import random
 
 MAX_ACTIVE_OASES = 4
+MAX_TOTAL_OASES = 10  # teto duro, vale inclusive para o Jardim do Eden
 OASIS_SPAWN_CHANCE_PER_FRAME = 0.01
 OASIS_RADIUS = 150.0
 OASIS_TTL_MIN = 15.0
@@ -24,6 +25,7 @@ class Oasis:
         self.y = y
         self.radius = radius
         self.ttl = ttl if ttl is not None else random.uniform(OASIS_TTL_MIN, OASIS_TTL_MAX)
+        self.ttl_initial = self.ttl
         self.food_cap = food_cap
 
     def random_point_inside(self):
@@ -33,4 +35,7 @@ class Oasis:
         return self.x + r * math.cos(angle), self.y + r * math.sin(angle)
 
     def to_dict(self):
-        return {"x": self.x, "y": self.y, "radius": self.radius, "ttl": self.ttl}
+        return {
+            "x": self.x, "y": self.y, "radius": self.radius, "ttl": self.ttl,
+            "ttl_fraction": max(0.0, self.ttl / self.ttl_initial),
+        }

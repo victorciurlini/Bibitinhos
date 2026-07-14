@@ -5,12 +5,14 @@ from simulation.creature import CREATURE_MASS
 
 FOOD_RADIUS = 5.0
 FOOD_MASS = CREATURE_MASS * 0.01  # 1% da massa da Creature: acao-reacao real, nao se comporta como parede
+FOOD_TTL = 30.0  # segundos ate a comida apodrecer e liberar vaga no cap global
 
 class Food:
     def __init__(self, engine, x, y, energy_value=20.0):
         self.engine = engine
         self.energy_value = energy_value
         self.is_active = True
+        self.ttl = FOOD_TTL
 
         # Pymunk Physics integration: corpo dinamico leve, permite ser empurrada
         moment = pymunk.moment_for_circle(FOOD_MASS, 0, FOOD_RADIUS)
