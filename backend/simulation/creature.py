@@ -52,12 +52,13 @@ def _rgb_to_hex(rgb):
 
 
 def compute_life_color(age, energy, max_energy):
-    """Azul (0-2) -> verde (2-10, flat 10-30) -> cinza/preto por energia (30+)."""
+    """Azul (0-2) -> verde (2-10) -> verde->cinza continuo (10-30) -> cinza/preto por energia (30+)."""
     if age <= 10:
         t = max(0.0, (age - 2) / 8.0) if age > 2 else 0.0
         rgb = _lerp_rgb(LIFE_COLOR_EGG, LIFE_COLOR_MATURE, t)
     elif age <= 30:
-        rgb = LIFE_COLOR_MATURE
+        t = (age - 10) / 20.0
+        rgb = _lerp_rgb(LIFE_COLOR_MATURE, LIFE_COLOR_ELDER_START, t)
     else:
         energy_fraction = max(0.0, min(1.0, energy / max_energy))
         rgb = _lerp_rgb(LIFE_COLOR_DEATH, LIFE_COLOR_ELDER_START, energy_fraction)

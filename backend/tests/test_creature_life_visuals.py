@@ -14,9 +14,11 @@ class TestComputeLifeColor:
     def test_age_ten_is_pure_green(self):
         assert compute_life_color(age=10, energy=100, max_energy=100) == '#22c55e'
 
-    def test_mature_plateau_stays_green_between_ten_and_thirty(self):
-        for age in (10, 15, 20, 25, 30):
-            assert compute_life_color(age=age, energy=100, max_energy=100) == '#22c55e'
+    def test_mature_to_elder_color_changes_continuously_between_ten_and_thirty(self):
+        samples = [compute_life_color(age=age, energy=100, max_energy=100) for age in (10, 15, 20, 25, 30)]
+        assert len(set(samples)) == len(samples)  # nenhum valor repetido: sempre mudando
+        assert samples[0] == '#22c55e'  # ponto de partida inalterado
+        assert samples[-1] == '#6b7280'  # termina exatamente onde o ramo ELDER (energia cheia) comeca
 
     def test_elder_start_full_energy_is_gray(self):
         assert compute_life_color(age=31, energy=100, max_energy=100) == '#6b7280'
