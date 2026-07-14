@@ -3,18 +3,26 @@ import math
 import numpy as np
 import pymunk
 
+from simulation.creature import LifeStage
+from simulation.physics import COLLISION_CATEGORY_CREATURE, COLLISION_CATEGORY_FOOD
+
 VISION_RADIUS = 200.0
 NUM_VISION_SECTORS = 9
 
 
 def compute_vision(creature, engine):
-    """Retorna 9 cones binarios (1.0 presenca / 0.0 vazio) ao redor da criatura.
+    """Retorna 9 cones com sinal ao redor da criatura.
 
-    Usa engine.physics.space.bb_query() para achar vizinhos num raio fixo e
-    numpy.arctan2 para mapear o angulo relativo de cada vizinho ao cone
-    correspondente. Nao diferencia tipo de vizinho (comida/criatura/parede).
+    Cada cone e positivo (comida, magnitude = fome), negativo (outra
+    criatura, magnitude = energia normalizada, so se a propria criatura
+    for ADULT) ou zero (vazio). Usa shape.collision_type para distinguir
+    tipo sem precisar importar Food (evita ciclo de import); paredes nao
+    setam collision_type e sao ignoradas automaticamente. Comida tem
+    precedencia sobre criatura quando ambas caem no mesmo setor.
     """
-    vision = [0.0] * NUM_VISION_SECTORS
+    food_present = [False] * NUM_VISION_SECTORS
+    creature_present = [False] * NUM_VISION_SECTORS
+
     space = engine.physics.space
     cx, cy = creature.body.position
     bb = pymunk.BB(cx - VISION_RADIUS, cy - VISION_RADIUS, cx + VISION_RADIUS, cy + VISION_RADIUS)
@@ -25,6 +33,9 @@ def compute_vision(creature, engine):
     for shape in shapes:
         if shape is creature.shape:
             continue
+        if shape.collision_type not in (COLLISION_CATEGORY_FOOD, COLLISION_CATEGORY_CREATURE):
+            continue  # paredes e qualquer shape sem tipo definido
+
         nx, ny = shape.body.position
         dx, dy = nx - cx, ny - cy
         distance = math.hypot(dx, dy)
@@ -36,6 +47,19 @@ def compute_vision(creature, engine):
         relative_angle = (relative_angle + np.pi) % (2 * np.pi) - np.pi
         shifted = (relative_angle + sector_width / 2) % (2 * np.pi)
         index = int(shifted // sector_width) % NUM_VISION_SECTORS
-        vision[index] = 1.0
 
+        if shape.collision_type == COLLISION_CATEGORY_FOOD:
+            food_present[index] = True
+        else:
+            creature_present[index] = True
+
+    hunger = 1.0 - min(creature.energy / creature.max_energy, 1.0)
+    mate_drive = (creature.energy / creature.max_energy) if creature.life_stage == LifeStage.ADULT else 0.0
+
+    vision = [0.0] * NUM_VISION_SECTORS
+    for i in range(NUM_VISION_SECTORS):
+        if food_present[i]:
+            vision[i] = hunger
+        elif creature_present[i]:
+            vision[i] = -mate_drive
     return vision

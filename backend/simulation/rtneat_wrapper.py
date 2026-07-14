@@ -8,7 +8,8 @@ Contrato de I/O da rede (net.activate(inputs) -> outputs), estavel para os
 sensores/atuadores da Creature:
 
 Inputs (indice -> sensor, inputs[i] mapeia para node key -(i+1)):
-    0-8   Visual_Sectors   (9 cones de visao; Gen 0: 3 ativos, resto -1.0)
+    0-8   Visual_Sectors   (9 cones; sinal em [-1,1]: positivo=comida (mag=fome),
+                           negativo=outra criatura (mag=energia, so se ADULT), 0=vazio)
     9     Energy_Level     (0.0-1.0)
     10    Age_Degradation  (0.0-1.0)
     11    Hormonal_Level   (0.0-1.0)
