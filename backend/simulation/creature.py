@@ -12,6 +12,7 @@ MOTOR_TORQUE_SCALE = 20.0
 KINETIC_LINEAR_NORM = 200.0
 KINETIC_ANGULAR_NORM = 10.0
 LATERAL_GRIP_RATE = 20.0  # taxa de amortecimento lateral (1/segundo), tunavel
+CREATURE_MASS = 1.0
 
 class LifeStage(Enum):
     EGG = 0
@@ -34,7 +35,7 @@ class Creature:
         self.engine = engine
         
         # Pymunk Physics integration
-        mass = 1.0
+        mass = CREATURE_MASS
         moment = pymunk.moment_for_circle(mass, 0, 10.0)
         self.body = pymunk.Body(mass, moment)
         
