@@ -1,7 +1,7 @@
 from simulation.physics import PhysicsEngine, COLLISION_CATEGORY_CREATURE, COLLISION_CATEGORY_FOOD
 from simulation.food import Food
 from simulation.creature import Creature, LifeStage
-from simulation.sensors import compute_vision
+from simulation.sensors import compute_vision, VISION_RADIUS
 from simulation.rtneat_wrapper import organic_crossover, mutate_genome
 from simulation.oasis import (
     Oasis,
@@ -177,6 +177,7 @@ class SimulationEngine:
             "generation": self.current_generation,
             "width": self.width,
             "height": self.height,
+            "vision_radius": VISION_RADIUS,
             "creatures": [c.to_dict() for c in self.creatures],
             "foods": [f.to_dict() for f in self.foods],
             "oases": [o.to_dict() for o in self.oases]

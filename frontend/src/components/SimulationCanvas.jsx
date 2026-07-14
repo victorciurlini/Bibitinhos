@@ -88,7 +88,30 @@ const SimulationCanvas = () => {
 
           // Render state
           if (data.creatures) {
+            const visionRadius = data.vision_radius || 200;
             data.creatures.forEach(creature => {
+              // Leque de visao (9 setores translucidos), desenhado atras do sprite
+              if (creature.vision && creature.vision.length > 0) {
+                const sectorCount = creature.vision.length;
+                const sectorWidth = (Math.PI * 2) / sectorCount;
+                const rotation = creature.rotation || 0;
+
+                ctx.save();
+                ctx.translate(creature.x, creature.y);
+                ctx.fillStyle = 'rgba(144, 238, 144, 0.5)'; // verde claro, 50% opacidade
+                for (let i = 0; i < sectorCount; i++) {
+                  const centerAngle = rotation + i * sectorWidth;
+                  const startAngle = centerAngle - sectorWidth / 2;
+                  const endAngle = centerAngle + sectorWidth / 2;
+                  ctx.beginPath();
+                  ctx.moveTo(0, 0);
+                  ctx.arc(0, 0, visionRadius, startAngle, endAngle);
+                  ctx.closePath();
+                  ctx.fill();
+                }
+                ctx.restore();
+              }
+
               if (images.current.bibity && images.current.bibity.complete && images.current.egg && images.current.egg.complete) {
                 const img = creature.life_stage === 'EGG' ? images.current.egg : images.current.bibity;
                 ctx.save();
