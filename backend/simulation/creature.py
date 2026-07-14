@@ -30,6 +30,54 @@ METABOLISM_RATE_BY_STAGE = {
     LifeStage.ELDER: 2.0,
 }
 
+# Gradiente visual de ciclo de vida: azul (recem-nascido) -> verde (maduro) -> cinza/quase-preto
+# (velhice, guiado pela energia restante, ja que nao ha teto de morte por idade).
+LIFE_COLOR_EGG = (59, 130, 246)          # #3b82f6 azul — recem-nascido
+LIFE_COLOR_MATURE = (34, 197, 94)        # #22c55e verde — maduro/pronto p/ reproduzir
+LIFE_COLOR_ELDER_START = (107, 114, 128) # #6b7280 cinza — inicio da velhice, energia cheia
+LIFE_COLOR_DEATH = (17, 24, 39)          # #111827 quase-preto — energia perto de zero
+
+VISUAL_SCALE_EGG = 0.7
+VISUAL_SCALE_ADULT = 1.0
+VISUAL_SCALE_ELDER_MIN = 0.85
+
+
+def _lerp_rgb(c1, c2, t):
+    t = max(0.0, min(1.0, t))
+    return tuple(round(a + (b - a) * t) for a, b in zip(c1, c2))
+
+
+def _rgb_to_hex(rgb):
+    return '#{:02x}{:02x}{:02x}'.format(*rgb)
+
+
+def compute_life_color(age, energy, max_energy):
+    """Azul (0-2) -> verde (2-10, flat 10-30) -> cinza/preto por energia (30+)."""
+    if age <= 10:
+        t = max(0.0, (age - 2) / 8.0) if age > 2 else 0.0
+        rgb = _lerp_rgb(LIFE_COLOR_EGG, LIFE_COLOR_MATURE, t)
+    elif age <= 30:
+        rgb = LIFE_COLOR_MATURE
+    else:
+        energy_fraction = max(0.0, min(1.0, energy / max_energy))
+        rgb = _lerp_rgb(LIFE_COLOR_DEATH, LIFE_COLOR_ELDER_START, energy_fraction)
+    return _rgb_to_hex(rgb)
+
+
+def compute_visual_scale(age, energy, max_energy):
+    """0.7 (ovo) -> 1.0 (adulto) -> encolhe ate 0.85 conforme energia cai no estagio ELDER."""
+    if age <= 2:
+        return VISUAL_SCALE_EGG
+    elif age <= 10:
+        t = (age - 2) / 8.0
+        return VISUAL_SCALE_EGG + (VISUAL_SCALE_ADULT - VISUAL_SCALE_EGG) * t
+    elif age <= 30:
+        return VISUAL_SCALE_ADULT
+    else:
+        energy_fraction = max(0.0, min(1.0, energy / max_energy))
+        return VISUAL_SCALE_ADULT - (VISUAL_SCALE_ADULT - VISUAL_SCALE_ELDER_MIN) * (1.0 - energy_fraction)
+
+
 class Creature:
     def __init__(self, engine, x=None, y=None, genome=None):
         self.engine = engine
@@ -146,8 +194,8 @@ class Creature:
             "x": self.body.position.x,
             "y": self.body.position.y,
             "rotation": self.body.angle,
-            "radius": self.size,
-            "color": "#00ff00" if self.diet == "herbivore" else "#ff0000",
+            "radius": self.size * compute_visual_scale(self.age, self.energy, self.max_energy),
+            "color": compute_life_color(self.age, self.energy, self.max_energy),
             "energy": self.energy,
             "diet": self.diet,
             "life_stage": self.life_stage.name,
