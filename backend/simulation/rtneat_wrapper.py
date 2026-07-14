@@ -27,6 +27,7 @@ Outputs (indice -> acao, output_keys 0..3):
     3  Action_Mate       (binario via threshold)
 """
 
+import copy
 import os
 
 import neat
@@ -81,3 +82,13 @@ def mutate_genome(genome, config):
     """
     genome.mutate(config.genome_config)
     return genome
+
+def clone_genome(genome, genome_id, config):
+    """
+    Cria uma copia independente de um genoma (reproducao assexuada: um unico pai).
+    Deepcopy garante que conexoes/nos do clone nao compartilhem referencia com o
+    original antes da mutacao subsequente.
+    """
+    clone = copy.deepcopy(genome)
+    clone.key = genome_id
+    return clone

@@ -2,7 +2,7 @@ from simulation.physics import PhysicsEngine, COLLISION_CATEGORY_CREATURE, COLLI
 from simulation.food import Food
 from simulation.creature import Creature, LifeStage
 from simulation.sensors import compute_vision, VISION_RADIUS, VISION_FOV_DEGREES
-from simulation.rtneat_wrapper import organic_crossover, mutate_genome
+from simulation.rtneat_wrapper import organic_crossover, mutate_genome, clone_genome
 from simulation.oasis import (
     Oasis,
     MAX_ACTIVE_OASES,
@@ -20,6 +20,9 @@ BRAIN_TICK_INTERVAL = 1 / 10.0
 REPRODUCTION_ENERGY_COST = 30.0
 REPRODUCTION_COOLDOWN = 10.0
 MIN_ENERGY_TO_MATE = 50.0
+MIN_ENERGY_TO_REPRODUCE_ASEXUALLY = 70.0
+ASEXUAL_REPRODUCTION_ENERGY_COST = 50.0
+ASEXUAL_REPRODUCTION_COOLDOWN = 20.0  # 2x o cooldown sexuado: via solo nao deve dominar sobre achar parceiro
 
 class SimulationEngine:
     def __init__(self):
@@ -46,9 +49,14 @@ class SimulationEngine:
             c1, c2 = shape_a.owner, shape_b.owner
             if not (c1.is_alive and c2.is_alive):
                 return True
+            # Marca "colidiu com outra criatura" independente do resultado abaixo —
+            # usado pelo laco de reproducao assexuada para nao disparar quando a via
+            # sexuada foi tentada mas falhou por causa do parceiro (nao e "estar sozinha").
+            c1.collided_with_creature_this_frame = True
+            c2.collided_with_creature_this_frame = True
             if c1.life_stage != LifeStage.ADULT or c2.life_stage != LifeStage.ADULT:
                 return True
-            if c1.mate_cooldown > 0 or c2.mate_cooldown > 0:
+            if c1.reproduction_cooldown > 0 or c2.reproduction_cooldown > 0:
                 return True
             if not (c1.action_mate and c2.action_mate):
                 return True
@@ -57,8 +65,8 @@ class SimulationEngine:
 
             c1.energy -= REPRODUCTION_ENERGY_COST
             c2.energy -= REPRODUCTION_ENERGY_COST
-            c1.mate_cooldown = REPRODUCTION_COOLDOWN
-            c2.mate_cooldown = REPRODUCTION_COOLDOWN
+            c1.reproduction_cooldown = REPRODUCTION_COOLDOWN
+            c2.reproduction_cooldown = REPRODUCTION_COOLDOWN
 
             child_id = self.next_genome_id()
             child_genome = organic_crossover(c1.genome, c2.genome, child_id, c1.config)
@@ -101,9 +109,46 @@ class SimulationEngine:
         """Atualiza um frame da simulação."""
         self.time_elapsed += dt
         
+        # Reseta a flag de colisao antes da fisica rodar (o handler de colisao
+        # criatura x criatura a re-marca durante o physics.step() abaixo).
+        for creature in self.creatures:
+            creature.collided_with_creature_this_frame = False
+
         # Atualizar Física
         self.physics.step(dt)
-        
+
+        # 1.5. Reproducao assexuada: Action_Mate reaproveitado como sinal geral de
+        # "quero reproduzir" — se a criatura nao encontrou parceiro (colisao) neste
+        # frame mas tem energia de sobra, clona o proprio genoma. Custo e cooldown
+        # mais altos que o sexuado: via de emergencia, nao deve ser dominante.
+        asexual_children = []
+        for creature in self.creatures:
+            if not creature.is_alive:
+                continue
+            if creature.life_stage != LifeStage.ADULT:
+                continue
+            if creature.collided_with_creature_this_frame:
+                continue
+            if creature.reproduction_cooldown > 0:
+                continue
+            if not creature.action_mate:
+                continue
+            if creature.energy < MIN_ENERGY_TO_REPRODUCE_ASEXUALLY:
+                continue
+
+            creature.energy -= ASEXUAL_REPRODUCTION_ENERGY_COST
+            creature.reproduction_cooldown = ASEXUAL_REPRODUCTION_COOLDOWN
+
+            child_id = self.next_genome_id()
+            child_genome = clone_genome(creature.genome, child_id, creature.config)
+            mutate_genome(child_genome, creature.config)
+            asexual_children.append(
+                Creature(self, creature.body.position.x, creature.body.position.y, genome=child_genome)
+            )
+
+        for child in asexual_children:
+            self.add_creature(child)
+
         # 1. Ciclo de vida dos oasis: expira os antigos, nasce novos, comida so dentro deles
         for oasis in self.oases:
             oasis.ttl -= dt

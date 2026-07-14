@@ -33,8 +33,8 @@ def test_adult_pair_with_action_mate_reproduces_on_collision():
     expected = 100.0 - REPRODUCTION_ENERGY_COST - DT * METABOLISM_RATE_BY_STAGE[LifeStage.ADULT]
     assert c1.energy == pytest.approx(expected)
     assert c2.energy == pytest.approx(expected)
-    assert c1.mate_cooldown > 0
-    assert c2.mate_cooldown > 0
+    assert c1.reproduction_cooldown > 0
+    assert c2.reproduction_cooldown > 0
 
 
 def test_child_genome_comes_from_crossover_and_mutation_not_zero_genome(monkeypatch):

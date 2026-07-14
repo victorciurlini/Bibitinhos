@@ -67,7 +67,8 @@ class Creature:
         self.life_stage = LifeStage.EGG
         self.age = 0.0
         self.vision = [0.0] * 9
-        self.mate_cooldown = 0.0
+        self.reproduction_cooldown = 0.0
+        self.collided_with_creature_this_frame = False
 
         # Cérebro NEAT: genoma injetado (reprodução futura) ou genoma zero (Gen 0)
         self.config = load_neat_config()
@@ -102,7 +103,7 @@ class Creature:
             return
 
         self.age += dt
-        self.mate_cooldown = max(0.0, self.mate_cooldown - dt)
+        self.reproduction_cooldown = max(0.0, self.reproduction_cooldown - dt)
 
         # Atualizar estágios de vida baseados na idade (mockado)
         if self.age > 30:
