@@ -23,7 +23,10 @@ def test_no_neighbors_returns_all_zero():
     assert vision == [0.0] * NUM_VISION_SECTORS
 
 
-def test_food_directly_ahead_activates_cone_zero():
+CENTER_SECTOR = NUM_VISION_SECTORS // 2  # setor 4: eixo central "para frente" do cone
+
+
+def test_food_directly_ahead_activates_center_cone():
     sim, creature = make_engine_with_creature(angle=0.0)
     creature.energy = 0.0  # fome = 1.0
     cx, cy = creature.body.position
@@ -32,7 +35,7 @@ def test_food_directly_ahead_activates_cone_zero():
 
     vision = compute_vision(creature, sim)
 
-    assert vision[0] == pytest.approx(1.0)
+    assert vision[CENTER_SECTOR] == pytest.approx(1.0)
     assert sum(vision) == pytest.approx(1.0)
 
 
@@ -47,33 +50,63 @@ def test_food_directly_ahead_but_creature_full_energy_gives_no_signal():
 
     vision = compute_vision(creature, sim)
 
-    assert vision[0] == 0.0
+    assert vision[CENTER_SECTOR] == 0.0
     assert vision == [0.0] * NUM_VISION_SECTORS
 
 
-def test_creature_directly_behind_activates_opposite_cone():
+def test_creature_directly_ahead_within_fov_activates_center_cone():
     sim, creature = make_engine_with_creature(angle=0.0)
     creature.life_stage = LifeStage.ADULT
     creature.energy = 100.0  # mate_drive = 1.0
+    cx, cy = creature.body.position
+    other = Creature(sim, x=cx + 50, y=cy)
+    sim.add_creature(other)
+
+    vision = compute_vision(creature, sim)
+
+    assert vision[CENTER_SECTOR] == pytest.approx(-1.0)
+    assert sum(vision) == pytest.approx(-1.0)
+
+
+def test_creature_directly_ahead_but_not_adult_gives_no_signal():
+    # Criatura presente e dentro do cone, mas observadora nao ADULT nao tem
+    # "interesse" -> vazio.
+    sim, creature = make_engine_with_creature(angle=0.0)
+    creature.life_stage = LifeStage.JUVENILE
+    creature.energy = 100.0
+    cx, cy = creature.body.position
+    other = Creature(sim, x=cx + 50, y=cy)
+    sim.add_creature(other)
+
+    vision = compute_vision(creature, sim)
+
+    assert vision == [0.0] * NUM_VISION_SECTORS
+
+
+def test_creature_directly_behind_is_outside_fov_no_signal():
+    # Cone de visao e frontal (120 graus) — qualquer coisa as costas da
+    # criatura (180 graus de diferenca) fica fora do cone, sem ativar setor.
+    sim, creature = make_engine_with_creature(angle=0.0)
+    creature.life_stage = LifeStage.ADULT
+    creature.energy = 100.0
     cx, cy = creature.body.position
     other = Creature(sim, x=cx - 50, y=cy)
     sim.add_creature(other)
 
     vision = compute_vision(creature, sim)
 
-    assert sum(vision) == pytest.approx(-1.0)
-    active_indices = [i for i, v in enumerate(vision) if v == pytest.approx(-1.0)]
-    assert active_indices[0] in (4, 5)
+    assert vision == [0.0] * NUM_VISION_SECTORS
 
 
-def test_creature_directly_behind_but_not_adult_gives_no_signal():
-    # Criatura presente, mas observadora nao ADULT nao tem "interesse" -> vazio.
+def test_food_just_outside_fov_edge_does_not_activate_any_cone():
+    # 70 graus de uma criatura virada para angle=0.0 fica fora do cone de 120
+    # graus (que cobre so ate +-60 graus a partir do eixo frontal).
     sim, creature = make_engine_with_creature(angle=0.0)
-    creature.life_stage = LifeStage.JUVENILE
-    creature.energy = 100.0
+    creature.energy = 0.0  # fome maxima, para garantir que o teste realmente cobre o caso
     cx, cy = creature.body.position
-    other = Creature(sim, x=cx - 50, y=cy)
-    sim.add_creature(other)
+    angle_rad = math.radians(70)
+    food = Food(sim, cx + 50 * math.cos(angle_rad), cy + 50 * math.sin(angle_rad))
+    sim.add_food(food)
 
     vision = compute_vision(creature, sim)
 
@@ -110,7 +143,7 @@ def test_food_and_creature_same_sector_food_wins():
 
     vision = compute_vision(creature, sim)
 
-    assert vision[0] == pytest.approx(0.5)
+    assert vision[CENTER_SECTOR] == pytest.approx(0.5)
     assert all(v >= 0 for v in vision)
 
 

@@ -88,21 +88,24 @@ const SimulationCanvas = () => {
 
           // Render state
           if (data.creatures) {
-            const visionRadius = data.vision_radius || 200;
+            const visionRadius = data.vision_radius || 80;
+            const visionFovRadians = ((data.vision_fov_degrees || 120) * Math.PI) / 180;
             data.creatures.forEach(creature => {
-              // Leque de visao (9 setores translucidos), desenhado atras do sprite
+              // Cone de visao frontal (9 setores translucidos), desenhado atras do sprite.
+              // Setor do meio fica centrado exatamente na direcao "para frente" (mesma
+              // geometria de compute_vision em sensors.py: nada atras da criatura acende).
               if (creature.vision && creature.vision.length > 0) {
                 const sectorCount = creature.vision.length;
-                const sectorWidth = (Math.PI * 2) / sectorCount;
+                const sectorWidth = visionFovRadians / sectorCount;
                 const rotation = creature.rotation || 0;
+                const fovStart = rotation - visionFovRadians / 2;
 
                 ctx.save();
                 ctx.translate(creature.x, creature.y);
                 ctx.fillStyle = 'rgba(144, 238, 144, 0.5)'; // verde claro, 50% opacidade
                 for (let i = 0; i < sectorCount; i++) {
-                  const centerAngle = rotation + i * sectorWidth;
-                  const startAngle = centerAngle - sectorWidth / 2;
-                  const endAngle = centerAngle + sectorWidth / 2;
+                  const startAngle = fovStart + i * sectorWidth;
+                  const endAngle = startAngle + sectorWidth;
                   ctx.beginPath();
                   ctx.moveTo(0, 0);
                   ctx.arc(0, 0, visionRadius, startAngle, endAngle);

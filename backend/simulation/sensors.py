@@ -6,19 +6,24 @@ import pymunk
 from simulation.creature import LifeStage
 from simulation.physics import COLLISION_CATEGORY_CREATURE, COLLISION_CATEGORY_FOOD
 
-VISION_RADIUS = 200.0
+VISION_RADIUS = 80.0
 NUM_VISION_SECTORS = 9
+VISION_FOV_DEGREES = 120.0
+VISION_FOV_RADIANS = math.radians(VISION_FOV_DEGREES)
 
 
 def compute_vision(creature, engine):
-    """Retorna 9 cones com sinal ao redor da criatura.
+    """Retorna 9 cones com sinal, cobrindo um cone frontal de VISION_FOV_DEGREES
+    graus a frente da criatura (setor 4, o do meio, e o eixo central "para
+    frente"; setores 0 e 8 sao as bordas extremas do cone). Nada fora do
+    cone (incluindo tudo atras da criatura) ativa qualquer setor.
 
     Cada cone e positivo (comida, magnitude = fome), negativo (outra
     criatura, magnitude = energia normalizada, so se a propria criatura
-    for ADULT) ou zero (vazio). Usa shape.collision_type para distinguir
-    tipo sem precisar importar Food (evita ciclo de import); paredes nao
-    setam collision_type e sao ignoradas automaticamente. Comida tem
-    precedencia sobre criatura quando ambas caem no mesmo setor.
+    for ADULT) ou zero (vazio/fora do cone). Usa shape.collision_type para
+    distinguir tipo sem precisar importar Food (evita ciclo de import);
+    paredes nao setam collision_type e sao ignoradas automaticamente.
+    Comida tem precedencia sobre criatura quando ambas caem no mesmo setor.
     """
     food_present = [False] * NUM_VISION_SECTORS
     creature_present = [False] * NUM_VISION_SECTORS
@@ -28,7 +33,8 @@ def compute_vision(creature, engine):
     bb = pymunk.BB(cx - VISION_RADIUS, cy - VISION_RADIUS, cx + VISION_RADIUS, cy + VISION_RADIUS)
     shapes = space.bb_query(bb, pymunk.ShapeFilter())
 
-    sector_width = 2 * np.pi / NUM_VISION_SECTORS
+    half_fov = VISION_FOV_RADIANS / 2
+    sector_width = VISION_FOV_RADIANS / NUM_VISION_SECTORS
 
     for shape in shapes:
         if shape is creature.shape:
@@ -45,8 +51,11 @@ def compute_vision(creature, engine):
         absolute_angle = np.arctan2(dy, dx)
         relative_angle = absolute_angle - creature.body.angle
         relative_angle = (relative_angle + np.pi) % (2 * np.pi) - np.pi
-        shifted = (relative_angle + sector_width / 2) % (2 * np.pi)
-        index = int(shifted // sector_width) % NUM_VISION_SECTORS
+        if abs(relative_angle) > half_fov:
+            continue  # fora do cone frontal (inclui tudo as costas)
+
+        shifted = relative_angle + half_fov
+        index = min(int(shifted // sector_width), NUM_VISION_SECTORS - 1)
 
         if shape.collision_type == COLLISION_CATEGORY_FOOD:
             food_present[index] = True
