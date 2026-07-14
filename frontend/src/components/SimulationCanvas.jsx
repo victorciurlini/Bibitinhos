@@ -111,6 +111,21 @@ const SimulationCanvas = () => {
           ctx.fillStyle = worldGradient;
           ctx.fillRect(0, 0, worldWidth, worldHeight);
 
+          // Oasis: zona de fertilidade, atras de tudo que e vivo/comestivel.
+          // Opacidade cai junto com o TTL (fade-out natural antes de expirar).
+          if (data.oases) {
+            data.oases.forEach(oasis => {
+              const frac = oasis.ttl_fraction ?? 1;
+              const grad = ctx.createRadialGradient(oasis.x, oasis.y, 0, oasis.x, oasis.y, oasis.radius);
+              grad.addColorStop(0, `rgba(80, 200, 120, ${0.10 + 0.15 * frac})`);
+              grad.addColorStop(1, 'rgba(80, 200, 120, 0)');
+              ctx.fillStyle = grad;
+              ctx.beginPath();
+              ctx.arc(oasis.x, oasis.y, oasis.radius, 0, Math.PI * 2);
+              ctx.fill();
+            });
+          }
+
           // Render state
           if (data.creatures) {
             const visionRadius = data.vision_radius || 80;

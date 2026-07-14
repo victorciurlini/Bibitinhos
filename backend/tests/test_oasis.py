@@ -3,8 +3,8 @@ import random
 import pytest
 
 from simulation.engine import SimulationEngine
-from simulation.oasis import Oasis
-from simulation.food import Food
+from simulation.oasis import Oasis, MAX_TOTAL_OASES, MAX_TOTAL_FOOD
+from simulation.food import Food, FOOD_TTL
 from simulation.creature import Creature, LifeStage
 
 
@@ -143,4 +143,67 @@ def test_get_state_includes_oases_field():
     state = engine.get_state()
 
     assert "oases" in state
-    assert state["oases"] == [{"x": 10, "y": 10, "radius": 150.0, "ttl": 5.0}]
+    assert state["oases"] == [{"x": 10, "y": 10, "radius": 150.0, "ttl": 5.0, "ttl_fraction": 1.0}]
+
+
+def test_food_expires_and_is_removed_after_ttl():
+    engine = SimulationEngine()
+    engine.creatures = []
+    engine.oases = []
+    food = Food(engine, 500, 500)
+    engine.add_food(food)
+
+    # +1 passo de folga para garantir que o ttl cruzou <= 0 dentro do loop de step().
+    steps_needed = int(FOOD_TTL * 30) + 1
+    for _ in range(steps_needed):
+        engine.step(1 / 30.0)
+
+    assert food.is_active is False
+    assert food not in engine.foods
+    assert food.body not in engine.physics.space.bodies
+
+
+def test_food_renews_after_ttl_expiry_at_global_cap(monkeypatch):
+    engine = SimulationEngine()
+    engine.creatures = []
+    engine.oases = [Oasis(500, 500, radius=200.0, ttl=1000.0, food_cap=MAX_TOTAL_FOOD)]
+
+    original_foods = [Food(engine, 500, 500) for _ in range(MAX_TOTAL_FOOD)]
+    for f in original_foods:
+        engine.add_food(f)
+
+    # Impede novos oasis aleatorios e forca spawn de comida sempre que houver vaga,
+    # isolando o teste ao efeito do TTL liberando espaco no cap global.
+    monkeypatch.setattr("simulation.engine.OASIS_SPAWN_CHANCE_PER_FRAME", 0.0)
+    monkeypatch.setattr("simulation.engine.OASIS_FOOD_SPAWN_CHANCE", 1.0)
+
+    steps_needed = int((FOOD_TTL + 2.0) * 30)
+    for _ in range(steps_needed):
+        engine.step(1 / 30.0)
+
+    assert len(engine.foods) > 0
+    assert not any(f in original_foods for f in engine.foods)
+
+
+def test_eden_respects_max_total_oases_cap():
+    engine = SimulationEngine()
+    engine.oases = [Oasis(i * 10, i * 10, ttl=100.0) for i in range(MAX_TOTAL_OASES - 2)]
+    engine.creatures = [Creature(engine, x=100 + i * 10, y=100) for i in range(5)]
+    for c in engine.creatures:
+        c.life_stage = LifeStage.ADULT
+
+    engine.step(1 / 30.0)
+
+    assert len(engine.oases) == MAX_TOTAL_OASES
+    assert engine._eden_active is True
+
+
+def test_oasis_to_dict_includes_ttl_fraction():
+    oasis = Oasis(0, 0, ttl=10.0)
+    assert oasis.to_dict()["ttl_fraction"] == 1.0
+
+    oasis.ttl = 5.0
+    assert oasis.to_dict()["ttl_fraction"] == 0.5
+
+    oasis.ttl = -1
+    assert oasis.to_dict()["ttl_fraction"] == 0.0

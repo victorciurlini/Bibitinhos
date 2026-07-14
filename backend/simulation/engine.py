@@ -6,6 +6,7 @@ from simulation.rtneat_wrapper import organic_crossover, mutate_genome, clone_ge
 from simulation.oasis import (
     Oasis,
     MAX_ACTIVE_OASES,
+    MAX_TOTAL_OASES,
     OASIS_SPAWN_CHANCE_PER_FRAME,
     OASIS_FOOD_SPAWN_CHANCE,
     MAX_TOTAL_FOOD,
@@ -149,6 +150,13 @@ class SimulationEngine:
         for child in asexual_children:
             self.add_creature(child)
 
+        # 0.5. Comida apodrece: TTL libera vaga no cap global (MAX_TOTAL_FOOD), sem isso
+        # comida orfa de oasis expirados satura o mapa e a renovacao para (BIT-18).
+        for food in self.foods:
+            food.ttl -= dt
+            if food.ttl <= 0 and food.is_active:
+                food.consume()
+
         # 1. Ciclo de vida dos oasis: expira os antigos, nasce novos, comida so dentro deles
         for oasis in self.oases:
             oasis.ttl -= dt
@@ -208,6 +216,8 @@ class SimulationEngine:
             if not self._eden_active:
                 self._eden_active = True
                 for creature in self.creatures:
+                    if len(self.oases) >= MAX_TOTAL_OASES:
+                        break
                     self.oases.append(Oasis(
                         creature.body.position.x, creature.body.position.y,
                         radius=EDEN_OASIS_RADIUS, ttl=EDEN_OASIS_TTL, food_cap=EDEN_OASIS_FOOD_CAP,
