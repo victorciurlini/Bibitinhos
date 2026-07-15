@@ -18,6 +18,12 @@ LATERAL_GRIP_RATE = 20.0  # taxa de amortecimento lateral (1/segundo), tunavel
 CREATURE_MASS = 1.0
 STARTING_ENERGY = 75.0  # 75% de max_energy: crias precisam comer antes de poder se reproduzir
 
+# BIT-22: reproducao sexuada por FERTILIDADE PERSISTENTE, nao por energia instantanea na colisao.
+# A criatura vira fertil ao atingir este limiar (tendo comido) e MANTEM a fertilidade mesmo com a
+# energia caindo no roaming, ate acasalar. O limiar e ALCANCAVEL de proposito (< max_energy); "comer
+# antes de acasalar" (BIT-16) e garantido pela flag has_eaten, nao pelo nivel de energia.
+FERTILITY_ENERGY_THRESHOLD = 60.0
+
 # --- Economia de energia (BIT-20): explorar tem que ser mais barato que ficar parado ---
 # O modelo antigo (thrust*speed*0.1 + |torque|*size*0.05) cobrava 5.0/s para andar e so 0.5/s
 # para girar no lugar. Com o metabolismo em cima, ficar parado girando sobrevivia 77s e explorar
@@ -140,7 +146,9 @@ class Creature:
         self.age = 0.0
         self.vision = [0.0] * 9
         self.reproduction_cooldown = 0.0
-        self.collided_with_creature_this_frame = False
+        self.sought_mate_this_frame = False  # BIT-22: substitui collided_with_creature_this_frame.
+        self.has_eaten = False   # BIT-22: setada ao comer (handler de colisao criatura x comida).
+        self.is_fertile = False  # BIT-22: fertilidade persistente para reproducao sexuada.
 
         # Cérebro NEAT: genoma injetado (reprodução futura) ou genoma zero (Gen 0)
         self.config = load_neat_config()
@@ -220,6 +228,12 @@ class Creature:
         self.energy -= dt * (motor_cost + idle_cost + metabolism_cost)
         if self.energy <= 0:
             self.is_alive = False
+
+        # Fertilidade persistente (BIT-22): vira fertil ao ser ADULT, ja ter comido e alcancar o limiar.
+        # Uma vez fertil, permanece ate acasalar (o roaming faz a energia cair, mas nao tira a aptidao).
+        if (self.life_stage == LifeStage.ADULT and self.has_eaten
+                and self.energy >= FERTILITY_ENERGY_THRESHOLD):
+            self.is_fertile = True
             
     def die(self):
         self.is_alive = False

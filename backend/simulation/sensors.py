@@ -12,9 +12,9 @@ VISION_FOV_DEGREES = 120.0
 VISION_FOV_RADIANS = math.radians(VISION_FOV_DEGREES)
 
 # BIT-21: fracao de energia a partir da qual um adulto passa a ser considerado "pronto para acasalar"
-# para efeito de PERCEPCAO (nao e o limiar de reproducao do engine, que e absoluto = MIN_ENERGY_TO_MATE).
-# Espelha o MIN_ENERGY_TO_MATE = 65 atual do engine sem acoplar sensors.py a ele (evita import circular).
-# (a spec citava 0.85 por referenciar o valor antigo de 85, retunado para 65 desde entao.)
+# para efeito de PERCEPCAO. Nao e o gate de reproducao do engine (BIT-22 substituiu MIN_ENERGY_TO_MATE
+# por is_fertile / FERTILITY_ENERGY_THRESHOLD); e apenas um limiar de percepcao, deliberadamente
+# desacoplado do engine para evitar import circular.
 MATE_ATTRACTION_ENERGY_FRACTION = 0.65
 
 

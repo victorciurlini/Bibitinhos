@@ -37,7 +37,7 @@ def test_far_apart_creature_and_food_do_not_interact():
     creature = Creature(engine, x=100, y=100)
     creature.energy = 50.0
     engine.add_creature(creature)
-    food = Food(engine, 1900, 1900, energy_value=20.0)  # canto oposto do mapa 2000x2000
+    food = Food(engine, 1300, 1300, energy_value=20.0)  # canto oposto do mapa (1400x1400)
     engine.add_food(food)
 
     engine.step(1 / 30.0)

@@ -17,6 +17,7 @@ from simulation.creature import (
     Creature,
     LifeStage,
     STARTING_ENERGY,
+    FERTILITY_ENERGY_THRESHOLD,
     IDLE_PENALTY_RATE,
     MOVEMENT_REFERENCE_SPEED,
     MOTOR_FORWARD_COST,
@@ -25,7 +26,6 @@ from simulation.creature import (
 )
 from simulation.engine import (
     SimulationEngine,
-    MIN_ENERGY_TO_MATE,
     MIN_ENERGY_TO_REPRODUCE_ASEXUALLY,
     REPRODUCTION_ENERGY_COST,
     ASEXUAL_REPRODUCTION_ENERGY_COST,
@@ -218,27 +218,50 @@ def test_seed_preserves_genetic_variety():
 # --- Reproducao: acasalar tem que dominar sobre clonar ---
 
 def test_mating_is_more_accessible_than_cloning():
-    assert MIN_ENERGY_TO_MATE < MIN_ENERGY_TO_REPRODUCE_ASEXUALLY
+    # BIT-22: o gate de energia da sexuada virou o piso de sobrevivencia (REPRODUCTION_ENERGY_COST),
+    # nao mais um MIN_ENERGY_TO_MATE proprio. Acasalar (custo/cooldown/piso menores) segue mais
+    # acessivel que clonar, que exige energia cheia.
+    assert REPRODUCTION_ENERGY_COST < MIN_ENERGY_TO_REPRODUCE_ASEXUALLY
     assert REPRODUCTION_ENERGY_COST < ASEXUAL_REPRODUCTION_ENERGY_COST
     assert REPRODUCTION_COOLDOWN < ASEXUAL_REPRODUCTION_COOLDOWN
 
 
-def test_mating_threshold_is_below_max_energy():
-    """O limiar nao pode voltar a colar no teto de max_energy.
+def test_fertility_threshold_is_below_max_energy():
+    """O limiar de fertilidade e ALCANCAVEL (BIT-22): nao pode colar no teto de max_energy.
 
-    Com MIN_ENERGY_TO_MATE == max_energy (o que o BIT-16 introduziu), acasalar exigia DUAS criaturas
-    com energia perfeitamente cheia no mesmo frame — janela quase nula —, enquanto clonar exigia so
-    uma. Era essa assimetria que fazia o bibite parado clonar em vez de acasalar.
+    Com o antigo MIN_ENERGY_TO_MATE == max_energy (BIT-16), acasalar exigia energia perfeitamente
+    cheia nas duas criaturas no mesmo frame — janela quase nula. O limiar de fertilidade < max_energy
+    garante que a criatura consegue de fato ficar fertil no roaming.
     """
     engine = SimulationEngine()
     max_energy = Creature(engine).max_energy
 
-    assert MIN_ENERGY_TO_MATE < max_energy
+    assert FERTILITY_ENERGY_THRESHOLD < max_energy
 
 
 def test_newborn_still_has_to_eat_before_mating():
-    """Intencao do BIT-16 preservada: ninguem acasala sem antes ter comido."""
-    assert MIN_ENERGY_TO_MATE > STARTING_ENERGY
+    """Intencao do BIT-16 preservada (BIT-22): ninguem fica fertil sem antes ter comido.
+
+    O "comer antes de acasalar" agora e o invariante da flag has_eaten, ortogonal ao nivel de
+    energia — nao mais um limiar de energia maior que STARTING_ENERGY (que era inalcancavel ou
+    nascia satisfeito, conflito que quebrava este teste). Um adulto recem-criado com energia CHEIA
+    mas que ainda nao comeu NAO fica fertil; depois de comer e atingir o limiar, fica.
+    """
+    engine = SimulationEngine()
+    creature = Creature(engine, x=700, y=700)
+    creature.life_stage = LifeStage.ADULT
+    creature.energy = creature.max_energy
+    assert creature.max_energy >= FERTILITY_ENERGY_THRESHOLD  # energia cheia satisfaz o limiar
+
+    # Ainda nao comeu -> nao fica fertil mesmo com energia cheia.
+    creature.has_eaten = False
+    creature.update(DT, engine)
+    assert not creature.is_fertile
+
+    # Comeu e continua acima do limiar -> fica fertil.
+    creature.has_eaten = True
+    creature.update(DT, engine)
+    assert creature.is_fertile
 
 
 # --- Jardim do Eden nao subsidia mais quem esta parado ---
