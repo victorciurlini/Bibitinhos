@@ -8,7 +8,7 @@ FOOD_MASS = CREATURE_MASS * 0.01  # 1% da massa da Creature: acao-reacao real, n
 FOOD_TTL = 30.0  # segundos ate a comida apodrecer e liberar vaga no cap global
 
 class Food:
-    def __init__(self, engine, x, y, energy_value=20.0):
+    def __init__(self, engine, x, y, energy_value=40.0):  # BIT-20: era 20.0 — recompensa por comer
         self.engine = engine
         self.energy_value = energy_value
         self.is_active = True

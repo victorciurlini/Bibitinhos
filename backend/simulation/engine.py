@@ -14,16 +14,24 @@ from simulation.oasis import (
     EDEN_OASIS_RADIUS,
     EDEN_OASIS_TTL,
     EDEN_OASIS_FOOD_CAP,
+    EDEN_OASIS_MIN_DISTANCE,
+    EDEN_OASIS_MAX_DISTANCE,
 )
+import math
 import random
 
 BRAIN_TICK_INTERVAL = 1 / 10.0
-REPRODUCTION_ENERGY_COST = 50.0
+REPRODUCTION_ENERGY_COST = 30.0  # BIT-20: era 50 — recompensa reproduzir (pos-parto sobra 45, sobrevivivel)
 REPRODUCTION_COOLDOWN = 10.0
-MIN_ENERGY_TO_MATE = 100.0
-MIN_ENERGY_TO_REPRODUCE_ASEXUALLY = 100.0  # teto de max_energy: nao da pra exigir mais que a sexuada
-ASEXUAL_REPRODUCTION_ENERGY_COST = 70.0  # mantem o delta de +20 sobre a sexuada (era 30+20=50, agora 50+20=70)
-ASEXUAL_REPRODUCTION_COOLDOWN = 20.0  # 2x o cooldown sexuado: via solo nao deve dominar sobre achar parceiro
+MIN_ENERGY_TO_MATE = 65.0  # BIT-20: era 100.0, que e EXATAMENTE o teto de max_energy — exigia energia
+                           # perfeitamente cheia nas DUAS criaturas no mesmo frame (janela quase nula),
+                           # o que empurrava toda a reproducao para a via assexuada, que exige so uma.
+                           # 85 > STARTING_ENERGY (75): a cria AINDA precisa comer antes de acasalar,
+                           # preservando a intencao do BIT-16.
+MIN_ENERGY_TO_REPRODUCE_ASEXUALLY = 90.0  # teto de max_energy: nao da pra exigir mais que a sexuada
+ASEXUAL_REPRODUCTION_ENERGY_COST = 85.0  # BIT-20: era 70 — clonar vira aposta de vida ou morte (sobra 15)
+ASEXUAL_REPRODUCTION_COOLDOWN = 45.0  # BIT-20: era 20 — 4.5x o cooldown sexuado. A clonagem segue viva
+                                      # como via de emergencia contra extincao, mas nao pode dominar.
 
 class SimulationEngine:
     def __init__(self):
@@ -218,8 +226,16 @@ class SimulationEngine:
                 for creature in self.creatures:
                     if len(self.oases) >= MAX_TOTAL_OASES:
                         break
+                    # O oasis nasce LONGE do sobrevivente (BIT-20): antes ele nascia em cima da posicao
+                    # dele, fazendo chover comida de graca justamente sobre quem ficou parado — o que
+                    # fechava o ciclo (parar -> populacao cai -> Eden -> comida gratis -> clonar).
+                    # O Eden segue sendo o seguro contra extincao, mas a comida se conquista andando.
+                    angle = random.uniform(0, 2 * math.pi)
+                    dist = random.uniform(EDEN_OASIS_MIN_DISTANCE, EDEN_OASIS_MAX_DISTANCE)
+                    ox = max(0.0, min(float(self.width), creature.body.position.x + dist * math.cos(angle)))
+                    oy = max(0.0, min(float(self.height), creature.body.position.y + dist * math.sin(angle)))
                     self.oases.append(Oasis(
-                        creature.body.position.x, creature.body.position.y,
+                        ox, oy,
                         radius=EDEN_OASIS_RADIUS, ttl=EDEN_OASIS_TTL, food_cap=EDEN_OASIS_FOOD_CAP,
                     ))
         else:

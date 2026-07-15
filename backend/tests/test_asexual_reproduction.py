@@ -1,7 +1,7 @@
 import pytest
 
 import simulation.engine as engine_module
-from simulation.creature import Creature, LifeStage, METABOLISM_RATE_BY_STAGE
+from simulation.creature import Creature, LifeStage, METABOLISM_RATE_BY_STAGE, IDLE_PENALTY_RATE
 from simulation.engine import (
     SimulationEngine,
     ASEXUAL_REPRODUCTION_ENERGY_COST,
@@ -46,7 +46,12 @@ def test_asexual_reproduction_fires_when_alone_with_enough_energy():
     child = [c for c in engine.creatures if c is not parent][0]
     assert child.life_stage == LifeStage.EGG
 
-    expected_energy = 100.0 - ASEXUAL_REPRODUCTION_ENERGY_COST - DT * METABOLISM_RATE_BY_STAGE[LifeStage.ADULT]
+    # Parada, ela tambem paga o imposto de ociosidade do BIT-20 no frame do update.
+    expected_energy = (
+        100.0
+        - ASEXUAL_REPRODUCTION_ENERGY_COST
+        - DT * (METABOLISM_RATE_BY_STAGE[LifeStage.ADULT] + IDLE_PENALTY_RATE)
+    )
     assert parent.energy == pytest.approx(expected_energy)
 
     expected_cooldown = ASEXUAL_REPRODUCTION_COOLDOWN - DT
