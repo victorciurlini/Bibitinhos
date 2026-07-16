@@ -68,23 +68,25 @@ Detalhes completos em [`docs/`](docs/):
 
 | Documento | Conteúdo |
 |---|---|
+| [`docs/roadmap.md`](docs/roadmap.md) | Fonte prospectiva: entregue / em refinamento / próximos / longo prazo |
 | [`docs/arquitetura.md`](docs/arquitetura.md) | Loops (física/cérebro/broadcast), contrato WebSocket, módulos do backend, renderização |
 | [`docs/simulacao.md`](docs/simulacao.md) | Regras vivas: economia de energia, visão, reprodução, oásis/Éden, ciclo de vida, contrato NEAT |
 | [`docs/historico.md`](docs/historico.md) | Linha do tempo BIT-00 → BIT-22, com o racional de cada mudança |
 | [`docs/desenvolvimento.md`](docs/desenvolvimento.md) | Workflow de tasks (`.sdd/`), fluxo git, como testar e validar |
 
-## Estado atual (2026-07-16)
+## Roadmap
 
-- **Mergeado em `develop`**: BIT-00 a BIT-22, incluindo a virada comportamental
-  (BIT-20 economia de energia pró-exploração, BIT-21 ímpeto de busca de comida e
-  acasalamento, BIT-22 reprodução sexuada emergente com acasalamento por proximidade).
-- **Em refinamento** (specs prontas em `.sdd/tasks/refiner/`): **BIT-19** ovo sem visão;
-  **BIT-24** controles interativos (pausar/acelerar tempo, inspecionar, arrastar bibite);
-  **BIT-23** parâmetros editáveis em tempo real (depende do BIT-24).
-- **Ainda não existe**: painéis de métricas, inspetor de rede neural, modo headless,
-  Docker/CI (Milestone 4 da visão original), sistema hormonal e relógio biológico
-  (inputs 11 e 12 do NEAT são placeholders fixos em `0.0`), mecânica de grab/carry
-  (`Action_Grab_Drop` é lido mas não tem efeito físico).
+- **✅ Entregue em `develop`**: BIT-00 → BIT-25 — Core (física + rtNEAT), ecossistema &
+  feedback visual, a virada comportamental (exploração, food-taxis, reprodução sexuada
+  emergente), controles interativos e parâmetros editáveis em tempo real.
+- **🔧 Em refinamento**: nenhuma spec pendente no momento.
+- **🔜 Próximos**: cap populacional configurável; separar o tick de física (60 FPS) do
+  brain tick (10 FPS) em loops distintos.
+- **🗺️ Longo prazo**: Milestone 4 (painéis de métricas, inspetor de rede neural, modo
+  headless, Docker/CI) e débitos técnicos (hormônio/relógio biológico placeholders,
+  grab/carry sem efeito).
+
+Detalhe completo e atualizado em [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Estrutura do repositório
 

@@ -48,13 +48,7 @@ Linha do tempo das tasks. Cada BIT tem spec e evidências completas em
 
 > Não existe BIT-11 — a numeração pulou.
 
-## Em refinamento (specs prontas em `.sdd/tasks/refiner/`)
-
-| BIT | Entrega prevista |
-|---|---|
-| BIT-19 | **Ovo sem visão** — EGG deixa de rodar visão/`think()`; `to_dict()` envia `vision: []`. Risco baixo, independente. |
-| BIT-24 | **Controles interativos** — fundação de comandos cliente→servidor sobre o WebSocket: pausar/acelerar tempo (substeps de `dt` fixo), inspeção client-side, arrasto por teleporte. Risco médio. (Renumerado de BIT-22 para evitar colisão com a task mergeada.) |
-| BIT-23 | **Parâmetros editáveis em tempo real** — registry `backend/simulation/params.py` para ajustar balanceamento pela UI. **Depende do BIT-24** estar em `develop`. Risco médio. |
+> **Em refinamento e planejado:** ver o [`roadmap.md`](roadmap.md) — este histórico registra apenas o que já foi entregue em `develop`.
 
 ## Divergências conhecidas da visão original (README histórico)
 

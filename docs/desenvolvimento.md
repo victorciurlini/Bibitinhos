@@ -46,6 +46,10 @@ Sem Linear — todo o fluxo é local, e **a pasta onde a task está reflete o se
   (executa a spec). Cada BIT-XX guarda `*.md` da spec, `evidence.md` e, quando houve
   revisão por sub-agente, `impl-report.md` / `review-report.md`.
 - A numeração BIT-XX é definitiva (BIT-11 não existe; a sequência pulou).
+- **Manter o roadmap:** ao criar ou fechar uma task, atualize o [`roadmap.md`](roadmap.md)
+  (mova a entrada entre 🔧 → 🔜 → ✅ conforme o estado) e reflita o resumo no bloco
+  `## Roadmap` do `README.md` — os dois no mesmo commit, para não haver lista de pendências
+  duplicada ou desatualizada.
 
 ## Fluxo git
 
