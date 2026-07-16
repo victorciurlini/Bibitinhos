@@ -153,6 +153,7 @@ class Creature:
         # Cérebro NEAT: genoma injetado (reprodução futura) ou genoma zero (Gen 0)
         self.config = load_neat_config()
         self.genome = genome if genome is not None else create_zero_genome(engine.next_genome_id(), self.config)
+        self.id = self.genome.key  # unico e monotonico via engine.next_genome_id()
         self.net = neat.nn.FeedForwardNetwork.create(self.genome, self.config)
 
         self.motor_forward = 0.0
@@ -243,13 +244,21 @@ class Creature:
             
     def to_dict(self):
         return {
+            "id": self.id,
             "x": self.body.position.x,
             "y": self.body.position.y,
             "rotation": self.body.angle,
             "radius": self.size * compute_visual_scale(self.age, self.energy, self.max_energy),
             "color": compute_life_color(self.age, self.energy, self.max_energy),
             "energy": self.energy,
+            "max_energy": self.max_energy,
+            "age": self.age,
             "diet": self.diet,
             "life_stage": self.life_stage.name,
-            "vision": self.vision
+            "reproduction_cooldown": self.reproduction_cooldown,
+            "vision": self.vision,
+            "motor_forward": self.motor_forward,
+            "motor_torque": self.motor_torque,
+            "action_mate": self.action_mate,
+            "action_grab_drop": self.action_grab_drop
         }

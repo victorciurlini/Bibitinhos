@@ -1,7 +1,11 @@
-import React, { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState } from 'react';
+import ControlMenu from './ControlMenu';
 
 const OFFSCREEN_TINT_SIZE = 64;
 const TINT_ALPHA = 0.55;
+const DRAG_THRESHOLD_PX = 5; // deslocamento de tela que separa clique de arrasto
+const HIT_SLOP_WORLD = 6; // folga do hit-test, em unidades de mundo
+const INSPECT_INTERVAL_MS = 150; // taxa de atualizacao do painel/controles (sem re-render a 30 FPS)
 
 const SimulationCanvas = () => {
   const canvasRef = useRef(null);
@@ -10,6 +14,24 @@ const SimulationCanvas = () => {
   const images = useRef({});
   const tintCanvasRef = useRef(null);
   const [status, setStatus] = useState('Connecting...');
+
+  // Estado quente de interacao fica em refs (nao dispara re-render a 30 FPS).
+  const wsRef = useRef(null);
+  const viewTransformRef = useRef({ scale: 1, offsetX: 0, offsetY: 0 });
+  const selectedIdRef = useRef(null);
+  const dragRef = useRef(null); // null ou { creatureId, startX, startY, moved }
+
+  // Espelho reativo (~150 ms) do que o painel/controles precisam mostrar.
+  const [inspectedCreature, setInspectedCreature] = useState(null);
+  const [paused, setPaused] = useState(false);
+  const [speed, setSpeed] = useState(1);
+
+  // Envia um comando pelo WS se ele estiver aberto.
+  const sendCommand = (obj) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(obj));
+    }
+  };
 
   const drawTintedSprite = (ctx, img, size, color) => {
     if (!tintCanvasRef.current) {
@@ -60,6 +82,7 @@ const SimulationCanvas = () => {
 
     // Setup WebSocket
     const ws = new WebSocket('ws://localhost:8001/ws');
+    wsRef.current = ws;
 
     ws.onopen = () => {
       setStatus('Connected');
@@ -97,10 +120,13 @@ const SimulationCanvas = () => {
         
         if (Number.isFinite(scale) && scale > 0) {
           ctx.save();
-          
+
           const offsetX = (canvas.width - worldWidth * scale) / 2;
           const offsetY = (canvas.height - worldHeight * scale) / 2;
-          
+
+          // Guarda a transform corrente para o hit-test / toWorld dos handlers de mouse.
+          viewTransformRef.current = { scale, offsetX, offsetY };
+
           ctx.translate(offsetX, offsetY);
           ctx.scale(scale, scale);
 
@@ -184,6 +210,21 @@ const SimulationCanvas = () => {
                 }
               }
             });
+
+            // Anel de destaque da criatura selecionada. Se o id sumiu do state
+            // (a criatura morreu), limpa a selecao para o painel/anel sumirem.
+            if (selectedIdRef.current != null) {
+              const sel = data.creatures.find(c => c.id === selectedIdRef.current);
+              if (sel) {
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2 / scale;
+                ctx.beginPath();
+                ctx.arc(sel.x, sel.y, (sel.radius || 10) + 6, 0, Math.PI * 2);
+                ctx.stroke();
+              } else {
+                selectedIdRef.current = null;
+              }
+            }
           }
           if (data.foods) {
             data.foods.forEach(food => {
@@ -208,8 +249,106 @@ const SimulationCanvas = () => {
 
     animationFrameId.current = requestAnimationFrame(renderLoop);
 
+    // Converte coordenadas de tela (evento) para coordenadas de mundo, usando a
+    // transform corrente calculada no renderLoop.
+    const toWorld = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const { scale, offsetX, offsetY } = viewTransformRef.current;
+      return {
+        x: (e.clientX - rect.left - offsetX) / scale,
+        y: (e.clientY - rect.top - offsetY) / scale,
+      };
+    };
+
+    // Retorna a criatura mais proxima do ponto de mundo dentro do raio + folga, ou null.
+    const hitTest = (worldX, worldY) => {
+      const data = latestWorldState.current;
+      if (!data || !data.creatures) return null;
+      let best = null;
+      let bestDist = Infinity;
+      for (const c of data.creatures) {
+        const dx = c.x - worldX;
+        const dy = c.y - worldY;
+        const dist = Math.hypot(dx, dy);
+        if (dist <= (c.radius || 10) + HIT_SLOP_WORLD && dist < bestDist) {
+          best = c;
+          bestDist = dist;
+        }
+      }
+      return best;
+    };
+
+    const handleMouseDown = (e) => {
+      const w = toWorld(e);
+      const hit = hitTest(w.x, w.y);
+      dragRef.current = {
+        creatureId: hit ? hit.id : null,
+        startX: e.clientX,
+        startY: e.clientY,
+        moved: false,
+      };
+    };
+
+    const handleMouseMove = (e) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      const screenDist = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY);
+      if (drag.creatureId == null) return; // clique no vazio nunca vira arrasto
+      const w = toWorld(e);
+      if (!drag.moved && screenDist >= DRAG_THRESHOLD_PX) {
+        drag.moved = true;
+        canvas.style.cursor = 'grabbing';
+        sendCommand({ action: 'drag', phase: 'start', creature_id: drag.creatureId });
+      }
+      if (drag.moved) {
+        sendCommand({ action: 'drag', phase: 'move', creature_id: drag.creatureId, x: w.x, y: w.y });
+      }
+    };
+
+    const finishDrag = (e) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      if (drag.moved) {
+        sendCommand({ action: 'drag', phase: 'end', creature_id: drag.creatureId });
+      } else {
+        // Sem arrasto: foi um clique. Seleciona o alvo (ou deseleciona no vazio).
+        const screenDist = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY);
+        if (screenDist < DRAG_THRESHOLD_PX) {
+          const w = toWorld(e);
+          const hit = hitTest(w.x, w.y);
+          selectedIdRef.current = hit ? hit.id : null;
+        }
+      }
+      dragRef.current = null;
+      canvas.style.cursor = 'default';
+    };
+
+    const handleMouseUp = (e) => finishDrag(e);
+    const handleMouseLeave = (e) => finishDrag(e);
+
+    canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseup', handleMouseUp);
+    canvas.addEventListener('mouseleave', handleMouseLeave);
+
+    // Espelha a ~150 ms o que os overlays precisam (evita re-render a 30 FPS).
+    const inspectInterval = setInterval(() => {
+      const data = latestWorldState.current;
+      if (!data) return;
+      if (typeof data.paused === 'boolean') setPaused(data.paused);
+      if (typeof data.speed === 'number') setSpeed(data.speed);
+      const id = selectedIdRef.current;
+      const sel = id != null && data.creatures ? data.creatures.find(c => c.id === id) : null;
+      setInspectedCreature(sel || null);
+    }, INSPECT_INTERVAL_MS);
+
     return () => {
       window.removeEventListener('resize', resizeCanvas);
+      canvas.removeEventListener('mousedown', handleMouseDown);
+      canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.removeEventListener('mouseup', handleMouseUp);
+      canvas.removeEventListener('mouseleave', handleMouseLeave);
+      clearInterval(inspectInterval);
       ws.close();
       if (animationFrameId.current) {
         cancelAnimationFrame(animationFrameId.current);
@@ -222,7 +361,7 @@ const SimulationCanvas = () => {
       <div style={{
         position: 'absolute',
         top: 10,
-        left: 10,
+        right: 10,
         padding: '5px 10px',
         backgroundColor: 'rgba(0,0,0,0.6)',
         borderRadius: '5px',
@@ -232,9 +371,15 @@ const SimulationCanvas = () => {
       }}>
         Status: {status}
       </div>
-      <canvas 
-        ref={canvasRef} 
+      <canvas
+        ref={canvasRef}
         style={{ display: 'block', width: '100%', height: '100%', backgroundColor: '#0a1e2e' }}
+      />
+      <ControlMenu
+        paused={paused}
+        speed={speed}
+        creature={inspectedCreature}
+        onCommand={sendCommand}
       />
     </div>
   );

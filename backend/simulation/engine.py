@@ -36,6 +36,11 @@ ASEXUAL_REPRODUCTION_ENERGY_COST = 95.0    # BIT-22: era 85 — clonar vira apos
 ASEXUAL_REPRODUCTION_COOLDOWN = 45.0  # BIT-20: era 20 — 4.5x o cooldown sexuado. A clonagem segue viva
                                       # como via de emergencia contra extincao, mas nao pode dominar.
 
+# BIT-24: velocidades de tempo permitidas (controle interativo). Nunca aumentamos o dt do step;
+# a aceleracao acontece por SUBSTEPS de dt fixo (ver main.simulation_loop) — estabilidade do Pymunk
+# e economia de energia dependem do dt constante.
+ALLOWED_SPEEDS = (0.5, 1.0, 2.0, 4.0)
+
 class SimulationEngine:
     def __init__(self):
         self.physics = PhysicsEngine()
@@ -71,6 +76,54 @@ class SimulationEngine:
         self.oases = []
         self._eden_active = False
 
+        # BIT-24: controle interativo de tempo e arrasto.
+        self.paused = False
+        self.speed = 1.0
+        self._held_creature = None
+        self._drag_target = None
+
+    def set_time_control(self, paused=None, speed=None):
+        """Ajusta pausa/velocidade. Valores invalidos de speed sao ignorados (no-op) — inclusive
+        nao-numericos (ex: cliente adulterado mandando "abc"/lista), sem derrubar a conexao."""
+        if paused is not None:
+            self.paused = bool(paused)
+        if speed is not None:
+            try:
+                speed = float(speed)
+            except (TypeError, ValueError):
+                return
+            if speed in ALLOWED_SPEEDS:
+                self.speed = speed
+
+    def get_creature_by_id(self, creature_id):
+        for c in self.creatures:
+            if c.id == creature_id:
+                return c
+        return None
+
+    def start_drag(self, creature_id):
+        creature = self.get_creature_by_id(creature_id)
+        if creature is None or not creature.is_alive:
+            return False
+        self._held_creature = creature
+        self._drag_target = (creature.body.position.x, creature.body.position.y)
+        return True
+
+    def drag_to(self, x, y):
+        """Move a criatura segurada. Aplica imediatamente (funciona tambem com a simulacao
+        pausada, ja que o broadcast continua) e guarda o alvo para o re-pin de cada step."""
+        if self._held_creature is None:
+            return
+        tx = max(0.0, min(float(self.width), float(x)))
+        ty = max(0.0, min(float(self.height), float(y)))
+        self._drag_target = (tx, ty)
+        self._held_creature.body.position = self._drag_target
+        self._held_creature.body.velocity = (0, 0)
+
+    def end_drag(self):
+        self._held_creature = None
+        self._drag_target = None
+
     def add_creature(self, creature):
         self.creatures.append(creature)
 
@@ -85,6 +138,15 @@ class SimulationEngine:
     def step(self, dt):
         """Atualiza um frame da simulação."""
         self.time_elapsed += dt
+
+        # BIT-24: re-fixar a criatura segurada imediatamente antes da fisica — senao o motor dela
+        # continuaria aplicando impulsos e ela escaparia da mao. Se morreu, solta.
+        if self._held_creature is not None:
+            if not self._held_creature.is_alive:
+                self.end_drag()
+            else:
+                self._held_creature.body.position = self._drag_target
+                self._held_creature.body.velocity = (0, 0)
 
         # Atualizar Física
         self.physics.step(dt)
@@ -253,6 +315,8 @@ class SimulationEngine:
 
     def get_state(self):
         return {
+            "paused": self.paused,
+            "speed": self.speed,
             "time": self.time_elapsed,
             "generation": self.current_generation,
             "width": self.width,

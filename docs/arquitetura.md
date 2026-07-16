@@ -65,30 +65,65 @@ Decisões consolidadas (ver `docs/historico.md` e specs em `.sdd/tasks/implement
 
 Mensagem única, `type: "state_update"`, emitida a 30 FPS:
 
+### Servidor → cliente (`state_update`, 30 FPS)
+
 ```jsonc
 {
   "type": "state_update",
+  "paused": false,           // BIT-24: eco do controle de tempo
+  "speed": 1.0,              // BIT-24: ∈ {0.5, 1.0, 2.0, 4.0}
   "time": 123.4,             // segundos simulados
   "generation": 1,
   "width": 2000, "height": 2000,
   "vision_radius": 80.0,
   "vision_fov_degrees": 120.0,
   "creatures": [{
+    "id": 42,                 // BIT-24: == genome.key, único e monotônico
     "x": 0.0, "y": 0.0,
     "rotation": 1.57,         // radianos
     "radius": 10.0,           // já multiplicado pela escala visual (idade/energia)
     "color": "#22c55e",       // gradiente de ciclo de vida (azul→verde→cinza→preto)
     "energy": 75.0,
+    "max_energy": 100.0,      // BIT-24: para a barra de energia do inspetor
+    "age": 12.3,              // BIT-24: idade em segundos simulados
     "diet": "herbivore",
     "life_stage": "ADULT",    // EGG | JUVENILE | ADULT | ELDER
-    "vision": [0.0, ...]      // 9 floats em [-1, 1]
+    "reproduction_cooldown": 0.0,  // BIT-24
+    "vision": [0.0, ...],     // 9 floats em [-1, 1]
+    "motor_forward": 0.0,     // BIT-24: saída do cérebro (bipolar)
+    "motor_torque": 0.0,      // BIT-24: saída do cérebro (bipolar)
+    "action_mate": false,     // BIT-24: saída do cérebro (bool)
+    "action_grab_drop": false // BIT-24: saída do cérebro (bool)
   }],
   "foods":  [{ "x": 0, "y": 0, "energy_value": 40.0, "radius": 5.0, "color": "#ffff00" }],
   "oases":  [{ "x": 0, "y": 0, "radius": 150.0, "ttl": 20.0, "ttl_fraction": 0.8 }]
 }
 ```
 
-O cliente não precisa enviar nada (o endpoint aceita e ignora mensagens de texto).
+### Cliente → servidor (BIT-24, texto JSON no `/ws` existente)
+
+Fundação de comandos por mensagem JSON com campo `action`, despachada em `main.py`
+(sem rota nova, **retrocompatível**: um cliente antigo que nada envia continua funcionando).
+Mensagem malformada ou ação desconhecida é ignorada — nunca derruba a conexão; campos são
+validados/coeridos no servidor (não se confia no cliente).
+
+```jsonc
+{"action": "set_time_control", "paused": true}          // campos opcionais e independentes
+{"action": "set_time_control", "speed": 2.0}            // speed ∈ {0.5, 1.0, 2.0, 4.0}; inválido = no-op
+{"action": "drag", "phase": "start", "creature_id": 42}
+{"action": "drag", "phase": "move",  "creature_id": 42, "x": 812.5, "y": 440.0}  // coords de MUNDO
+{"action": "drag", "phase": "end",   "creature_id": 42}
+```
+
+- **Controle de tempo** (`set_time_control`): pausa/velocidade por **substeps de `dt` fixo**
+  (1/30) no `simulation_loop` — nunca aumentando o `dt` (estabilidade do Pymunk e a economia de
+  energia dependem dele). Pausado, nenhum step roda mas o broadcast continua. A UI reflete o
+  estado ecoado (`paused`/`speed`), nunca assume que o comando foi aplicado.
+- **Arrasto** (`drag`): teleporte re-fixado. A posição da criatura segurada é re-aplicada a
+  cada frame de física (imediatamente antes de `physics.step`), vencendo o motor. Funciona com a
+  simulação pausada. A criatura arrastada continua pagando metabolismo/ociosidade e sujeita a
+  colisões (comer/acasalar no caminho) — emergente, não é bug. Se ela morre durante o drag, é
+  solta no `step()` seguinte; a desconexão do cliente também solta (`end_drag`).
 
 ## Frontend
 
