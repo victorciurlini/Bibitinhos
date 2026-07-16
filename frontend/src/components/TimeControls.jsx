@@ -1,34 +1,36 @@
 /* eslint-disable react/prop-types */
-// Controle de tempo: pausar/retomar + velocidades. Conteudo embutivel (renderiza inline
-// dentro do ControlMenu; nao se posiciona sozinho).
-// O estado ativo reflete `paused`/`speed` ECOADOS pelo servidor (props),
-// nunca a suposicao de que o comando foi aplicado.
+// Controle de tempo: pausar/retomar + velocidades. Conteudo embutivel (renderiza inline dentro
+// do ControlMenu). O estado ativo reflete `paused`/`speed` ECOADOS pelo servidor (props), nunca
+// a suposicao de que o comando foi aplicado. Estetica bioluminescente (ver hudTheme.js).
+import { HUD } from './hudTheme';
 
 const SPEEDS = [0.5, 1, 2, 4];
 
 const CONTAINER_STYLE = {
   display: 'flex',
   flexWrap: 'wrap',
-  gap: 6,
-  fontFamily: 'monospace',
+  gap: 5,
 };
 
 const buttonStyle = (active) => ({
   minWidth: 34,
-  padding: '4px 8px',
-  border: 'none',
-  borderRadius: 3,
+  padding: '5px 9px',
+  border: active ? '1px solid rgba(70,229,176,0.9)' : '1px solid rgba(230,244,239,0.12)',
+  borderRadius: 7,
   cursor: 'pointer',
-  fontFamily: 'monospace',
-  fontSize: '13px',
-  backgroundColor: active ? '#4CAF50' : 'rgba(255,255,255,0.15)',
-  color: active ? '#000' : '#fff',
+  fontFamily: HUD.fontMono,
+  fontSize: '12px',
+  fontWeight: active ? 700 : 400,
+  backgroundColor: active ? HUD.accent : 'rgba(230,244,239,0.06)',
+  color: active ? '#04201a' : HUD.text,
+  boxShadow: active ? HUD.accentGlow : 'none',
 });
 
 const TimeControls = ({ paused, speed, onCommand }) => {
   return (
     <div style={CONTAINER_STYLE}>
       <button
+        className="hud-btn hud-time-btn"
         style={buttonStyle(paused)}
         onClick={() => onCommand({ action: 'set_time_control', paused: !paused })}
         title={paused ? 'Retomar' : 'Pausar'}
@@ -38,6 +40,7 @@ const TimeControls = ({ paused, speed, onCommand }) => {
       {SPEEDS.map((v) => (
         <button
           key={v}
+          className="hud-btn hud-time-btn"
           style={buttonStyle(!paused && speed === v)}
           onClick={() => onCommand({ action: 'set_time_control', speed: v })}
         >

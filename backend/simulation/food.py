@@ -6,11 +6,15 @@ from simulation.creature import CREATURE_MASS
 FOOD_RADIUS = 5.0
 FOOD_MASS = CREATURE_MASS * 0.01  # 1% da massa da Creature: acao-reacao real, nao se comporta como parede
 FOOD_TTL = 30.0  # segundos ate a comida apodrecer e liberar vaga no cap global
+FOOD_ENERGY_VALUE = 32.0  # BIT-22: era 40.0 (BIT-20 subira de 20.0) — recompensa por comer
+                          # (tunavel em runtime, BIT-23)
 
 class Food:
-    def __init__(self, engine, x, y, energy_value=32.0):  # BIT-22: era 40.0 (BIT-20 subiu de 20.0)
+    def __init__(self, engine, x, y, energy_value=None):
+        # Sentinel None em vez de default literal: default de funcao e congelado no `def`, entao
+        # patchear FOOD_ENERGY_VALUE em runtime (BIT-23) nao afetaria comida nova se fosse default.
         self.engine = engine
-        self.energy_value = energy_value
+        self.energy_value = FOOD_ENERGY_VALUE if energy_value is None else energy_value
         self.is_active = True
         self.ttl = FOOD_TTL
 

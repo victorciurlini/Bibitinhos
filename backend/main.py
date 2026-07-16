@@ -42,6 +42,7 @@ def read_root():
 # Loop de simulação e engine
 from simulation.engine import SimulationEngine
 from simulation.creature import Creature
+from simulation.params import set_param, reset_params
 
 engine = SimulationEngine()
 
@@ -69,6 +70,10 @@ async def websocket_endpoint(websocket: WebSocket):
                         pass
                 elif phase == "end":
                     engine.end_drag()
+            elif action == "set_param":
+                set_param(engine, msg.get("name"), msg.get("value"))
+            elif action == "reset_params":
+                reset_params(engine)
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         engine.end_drag()  # cliente caiu no meio de um drag: solta a criatura

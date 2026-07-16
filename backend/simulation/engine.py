@@ -3,6 +3,7 @@ from simulation.food import Food
 from simulation.creature import Creature, LifeStage
 from simulation.sensors import compute_vision, VISION_RADIUS, VISION_FOV_DEGREES
 from simulation.rtneat_wrapper import organic_crossover, mutate_genome, clone_genome
+from simulation.params import get_params
 from simulation.oasis import (
     Oasis,
     MAX_ACTIVE_OASES,
@@ -325,5 +326,6 @@ class SimulationEngine:
             "vision_fov_degrees": VISION_FOV_DEGREES,
             "creatures": [c.to_dict() for c in self.creatures],
             "foods": [f.to_dict() for f in self.foods],
-            "oases": [o.to_dict() for o in self.oases]
+            "oases": [o.to_dict() for o in self.oases],
+            "params": get_params(self),
         }

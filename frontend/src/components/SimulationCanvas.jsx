@@ -25,6 +25,7 @@ const SimulationCanvas = () => {
   const [inspectedCreature, setInspectedCreature] = useState(null);
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [params, setParams] = useState(null);
 
   // Envia um comando pelo WS se ele estiver aberto.
   const sendCommand = (obj) => {
@@ -337,6 +338,7 @@ const SimulationCanvas = () => {
       if (!data) return;
       if (typeof data.paused === 'boolean') setPaused(data.paused);
       if (typeof data.speed === 'number') setSpeed(data.speed);
+      if (data.params && typeof data.params === 'object') setParams(data.params);
       const id = selectedIdRef.current;
       const sel = id != null && data.creatures ? data.creatures.find(c => c.id === id) : null;
       setInspectedCreature(sel || null);
@@ -360,16 +362,31 @@ const SimulationCanvas = () => {
     <div style={{ position: 'relative', width: '100%', height: '100%', flex: 1 }}>
       <div style={{
         position: 'absolute',
-        top: 10,
-        right: 10,
-        padding: '5px 10px',
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        borderRadius: '5px',
-        color: '#fff',
+        top: 12,
+        right: 12,
+        padding: '6px 11px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 7,
+        backgroundColor: 'rgba(9, 26, 30, 0.74)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
+        border: '1px solid rgba(70, 229, 176, 0.16)',
+        borderRadius: 10,
+        boxShadow: '0 6px 24px rgba(0, 0, 0, 0.45)',
+        color: '#e6f4ef',
         zIndex: 10,
-        fontFamily: 'monospace'
+        fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
+        fontSize: '12px'
       }}>
-        Status: {status}
+        <span style={{
+          width: 7,
+          height: 7,
+          borderRadius: '50%',
+          backgroundColor: '#46e5b0',
+          boxShadow: '0 0 6px rgba(70, 229, 176, 0.9)'
+        }} />
+        {status}
       </div>
       <canvas
         ref={canvasRef}
@@ -379,6 +396,7 @@ const SimulationCanvas = () => {
         paused={paused}
         speed={speed}
         creature={inspectedCreature}
+        params={params}
         onCommand={sendCommand}
       />
     </div>

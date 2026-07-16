@@ -3,6 +3,11 @@
 > Documento vivo — os valores abaixo refletem o código em 2026-07-15 (pós BIT-20, com o
 > trabalho do BIT-21 já presente na working tree). **O código é a fonte da verdade**:
 > as constantes citam o arquivo onde vivem; em caso de divergência, vale o `.py`.
+>
+> **BIT-23:** vários destes valores de balanceamento (energia, reprodução, ecossistema,
+> ambiente) são apenas *defaults do código* — o painel "⚙ Parâmetros" permite ajustá-los
+> **em tempo real** via `simulation/params.py` (registry `PARAM_SPECS`). Os ajustes valem só
+> em memória: reiniciar o backend restaura os defaults aqui documentados.
 
 ## 1. Mundo físico (`physics.py`)
 
