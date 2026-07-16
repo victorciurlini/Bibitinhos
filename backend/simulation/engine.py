@@ -265,8 +265,10 @@ class SimulationEngine:
         self._brain_accumulator += dt
         if self._brain_accumulator >= BRAIN_TICK_INTERVAL:
             self._brain_accumulator -= BRAIN_TICK_INTERVAL
+            # Ovo e dormante: sem visao e sem think, coerente com motor/metabolismo zero do estagio.
+            # A visao so passa a existir no bibite nascido (JUVENILE+), primeiro brain tick pos-hatch.
             for creature in self.creatures:
-                if creature.is_alive:
+                if creature.is_alive and creature.life_stage != LifeStage.EGG:
                     creature.vision = compute_vision(creature, self)
                     creature.think(self)
 

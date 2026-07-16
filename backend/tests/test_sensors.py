@@ -183,6 +183,10 @@ def test_wall_near_map_edge_does_not_activate_any_cone():
 
 def test_engine_step_only_recomputes_vision_at_brain_tick_rate(monkeypatch):
     sim, _creature = make_engine_with_creature()
+    # BIT-19: envelhece a criatura para JUVENILE — do contrario, como ovos nao computam visao,
+    # a asserção `<= 1` viraria vacua (0 chamadas) e deixaria de exercitar o caminho real do tick.
+    _creature.age = 5.0
+    _creature.life_stage = LifeStage.JUVENILE
     call_count = {"n": 0}
 
     def counting_compute_vision(creature, engine):
@@ -195,3 +199,23 @@ def test_engine_step_only_recomputes_vision_at_brain_tick_rate(monkeypatch):
         sim.step(1 / 30.0)
 
     assert call_count["n"] <= 1
+
+
+def test_egg_never_computes_vision_via_engine_step(monkeypatch):
+    # BIT-19: um ovo (EGG, age 0) nunca deve ter a visao computada no brain tick.
+    sim, creature = make_engine_with_creature()
+    call_count = {"n": 0}
+
+    def counting_compute_vision(c, engine):
+        call_count["n"] += 1
+        return [0.0] * NUM_VISION_SECTORS
+
+    monkeypatch.setattr(engine_module, "compute_vision", counting_compute_vision)
+
+    # 6 frames a 1/30s = 0.2s, cobrindo 2 brain ticks — tempo de sobra para hatch NAO acontecer
+    # (hatch so em age > 2), garantindo que a criatura segue EGG durante todo o teste.
+    for _ in range(6):
+        sim.step(1 / 30.0)
+
+    assert call_count["n"] == 0
+    assert creature.vision == [0.0] * NUM_VISION_SECTORS

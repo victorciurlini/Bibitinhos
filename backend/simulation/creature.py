@@ -256,7 +256,7 @@ class Creature:
             "diet": self.diet,
             "life_stage": self.life_stage.name,
             "reproduction_cooldown": self.reproduction_cooldown,
-            "vision": self.vision,
+            "vision": [] if self.life_stage == LifeStage.EGG else self.vision,
             "motor_forward": self.motor_forward,
             "motor_torque": self.motor_torque,
             "action_mate": self.action_mate,
