@@ -26,3 +26,4 @@ frontend/*.local
 
 # CodeGraph (indice local, regeneravel via `codegraph init`)
 .codegraph/
+codegraph-visual.html
