@@ -1,6 +1,6 @@
 import pytest
 
-from simulation.creature import Creature, LifeStage, METABOLISM_RATE_BY_STAGE
+from simulation.creature import Creature, LifeStage, METABOLISM_RATE_BY_STAGE, IDLE_PENALTY_RATE
 from simulation.engine import SimulationEngine
 
 
@@ -50,7 +50,8 @@ def test_update_energy_cost_proportional_to_motor_magnitude():
     quiet_energy_before = quiet.energy
     quiet.update(1 / 30.0, engine)
     quiet_cost = quiet_energy_before - quiet.energy
-    expected_quiet_cost = (1 / 30.0) * METABOLISM_RATE_BY_STAGE[LifeStage.ADULT]
+    # Parada, ela paga metabolismo + imposto de ociosidade (BIT-20): ficar imovel nao e mais de graca.
+    expected_quiet_cost = (1 / 30.0) * (METABOLISM_RATE_BY_STAGE[LifeStage.ADULT] + IDLE_PENALTY_RATE)
     assert quiet_cost == pytest.approx(expected_quiet_cost)
 
     active = Creature(engine)

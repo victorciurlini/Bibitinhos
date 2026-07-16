@@ -6,7 +6,12 @@ from simulation import engine as engine_module
 from simulation.creature import Creature, LifeStage
 from simulation.engine import SimulationEngine
 from simulation.food import Food
-from simulation.sensors import NUM_VISION_SECTORS, VISION_RADIUS, compute_vision
+from simulation.sensors import (
+    MATE_ATTRACTION_ENERGY_FRACTION,
+    NUM_VISION_SECTORS,
+    VISION_RADIUS,
+    compute_vision,
+)
 
 
 def make_engine_with_creature(angle=0.0):
@@ -54,18 +59,37 @@ def test_food_directly_ahead_but_creature_full_energy_gives_no_signal():
     assert vision == [0.0] * NUM_VISION_SECTORS
 
 
-def test_creature_directly_ahead_within_fov_activates_center_cone():
+def test_ready_adult_perceives_partner_as_attractive():
+    # BIT-21: adulto pronto para acasalar percebe outra criatura como sinal POSITIVO.
     sim, creature = make_engine_with_creature(angle=0.0)
     creature.life_stage = LifeStage.ADULT
-    creature.energy = 100.0  # mate_drive = 1.0
+    creature.energy = 100.0  # >= limiar -> pronto
+    creature.reproduction_cooldown = 0.0
     cx, cy = creature.body.position
     other = Creature(sim, x=cx + 50, y=cy)
     sim.add_creature(other)
 
     vision = compute_vision(creature, sim)
 
-    assert vision[CENTER_SECTOR] == pytest.approx(-1.0)
-    assert sum(vision) == pytest.approx(-1.0)
+    assert vision[CENTER_SECTOR] == pytest.approx(1.0)
+    assert sum(vision) == pytest.approx(1.0)
+
+
+def test_not_ready_adult_still_perceives_creature_as_negative():
+    # Observador ADULT mas com energia baixa (< limiar) -> sinal negativo preservado (design BIT-13).
+    sim, creature = make_engine_with_creature(angle=0.0)
+    creature.life_stage = LifeStage.ADULT
+    # energia estritamente abaixo do limiar de percepcao (fracao < MATE_ATTRACTION_ENERGY_FRACTION)
+    creature.energy = (MATE_ATTRACTION_ENERGY_FRACTION - 0.15) * creature.max_energy
+    cx, cy = creature.body.position
+    other = Creature(sim, x=cx + 50, y=cy)
+    sim.add_creature(other)
+
+    vision = compute_vision(creature, sim)
+
+    expected = -(MATE_ATTRACTION_ENERGY_FRACTION - 0.15)
+    assert vision[CENTER_SECTOR] == pytest.approx(expected)
+    assert sum(vision) == pytest.approx(expected)
 
 
 def test_creature_directly_ahead_but_not_adult_gives_no_signal():

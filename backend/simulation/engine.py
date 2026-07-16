@@ -14,16 +14,27 @@ from simulation.oasis import (
     EDEN_OASIS_RADIUS,
     EDEN_OASIS_TTL,
     EDEN_OASIS_FOOD_CAP,
+    EDEN_OASIS_MIN_DISTANCE,
+    EDEN_OASIS_MAX_DISTANCE,
 )
+import math
 import random
 
 BRAIN_TICK_INTERVAL = 1 / 10.0
-REPRODUCTION_ENERGY_COST = 50.0
+MATING_RADIUS = 150.0  # BIT-22: acasalamento por PROXIMIDADE, nao por colisao exata no mesmo frame
+                       # (evento raro demais em espaco continuo esparso). Ambos ainda precisam querer
+                       # (action_mate) — o cerebro segue no comando.
+                       # Calibracao (passo 9 da spec, degrau 1): 120 dava ~1/run com um seed em 0;
+                       # subir para 150 leva a media a ~2.6/run e torna a sexuada recorrente em todos
+                       # os 5 seeds testados (0 extincoes, Eden como seguro).
+REPRODUCTION_ENERGY_COST = 30.0  # BIT-20: era 50 — recompensa reproduzir (pos-parto sobra 45, sobrevivivel)
 REPRODUCTION_COOLDOWN = 10.0
-MIN_ENERGY_TO_MATE = 100.0
-MIN_ENERGY_TO_REPRODUCE_ASEXUALLY = 100.0  # teto de max_energy: nao da pra exigir mais que a sexuada
-ASEXUAL_REPRODUCTION_ENERGY_COST = 70.0  # mantem o delta de +20 sobre a sexuada (era 30+20=50, agora 50+20=70)
-ASEXUAL_REPRODUCTION_COOLDOWN = 20.0  # 2x o cooldown sexuado: via solo nao deve dominar sobre achar parceiro
+# MIN_ENERGY_TO_MATE removido (BIT-22): substituido por is_fertile. O unico piso de energia no
+# acasalamento e a sobrevivencia (energia >= REPRODUCTION_ENERGY_COST, para nao acasalar ate a morte).
+MIN_ENERGY_TO_REPRODUCE_ASEXUALLY = 100.0  # BIT-22: era 90 — assexuada exige energia cheia
+ASEXUAL_REPRODUCTION_ENERGY_COST = 95.0    # BIT-22: era 85 — clonar vira aposta quase suicida (sobra 5)
+ASEXUAL_REPRODUCTION_COOLDOWN = 45.0  # BIT-20: era 20 — 4.5x o cooldown sexuado. A clonagem segue viva
+                                      # como via de emergencia contra extincao, mas nao pode dominar.
 
 class SimulationEngine:
     def __init__(self):
@@ -36,6 +47,7 @@ class SimulationEngine:
             food = food_shape.owner
             if food.is_active and creature.is_alive:
                 creature.energy = min(creature.energy + food.energy_value, creature.max_energy)
+                creature.has_eaten = True  # BIT-22: habilita fertilidade (comer antes de acasalar)
                 food.consume()
             return True  # deixa a resolucao fisica normal acontecer (elasticity ja configurada nos shapes)
 
@@ -44,45 +56,9 @@ class SimulationEngine:
             begin=_on_creature_food_collision,
         )
 
-        def _on_creature_creature_collision(arbiter, space, data):
-            """Handler de colisao criatura x criatura: reproducao sexuada via Action_Mate."""
-            shape_a, shape_b = arbiter.shapes
-            c1, c2 = shape_a.owner, shape_b.owner
-            if not (c1.is_alive and c2.is_alive):
-                return True
-            # Marca "colidiu com outra criatura" independente do resultado abaixo —
-            # usado pelo laco de reproducao assexuada para nao disparar quando a via
-            # sexuada foi tentada mas falhou por causa do parceiro (nao e "estar sozinha").
-            c1.collided_with_creature_this_frame = True
-            c2.collided_with_creature_this_frame = True
-            if c1.life_stage != LifeStage.ADULT or c2.life_stage != LifeStage.ADULT:
-                return True
-            if c1.reproduction_cooldown > 0 or c2.reproduction_cooldown > 0:
-                return True
-            if not (c1.action_mate and c2.action_mate):
-                return True
-            if c1.energy < MIN_ENERGY_TO_MATE or c2.energy < MIN_ENERGY_TO_MATE:
-                return True
-
-            c1.energy -= REPRODUCTION_ENERGY_COST
-            c2.energy -= REPRODUCTION_ENERGY_COST
-            c1.reproduction_cooldown = REPRODUCTION_COOLDOWN
-            c2.reproduction_cooldown = REPRODUCTION_COOLDOWN
-
-            child_id = self.next_genome_id()
-            child_genome = organic_crossover(c1.genome, c2.genome, child_id, c1.config)
-            mutate_genome(child_genome, c1.config)
-
-            child_x = (c1.body.position.x + c2.body.position.x) / 2
-            child_y = (c1.body.position.y + c2.body.position.y) / 2
-            child = Creature(self, child_x, child_y, genome=child_genome)
-            self.add_creature(child)
-            return True
-
-        self.physics.space.on_collision(
-            COLLISION_CATEGORY_CREATURE, COLLISION_CATEGORY_CREATURE,
-            begin=_on_creature_creature_collision,
-        )
+        # BIT-22: o handler de colisao criatura x criatura foi removido — a reproducao sexuada
+        # deixou de depender de colisao exata no mesmo frame e passou a ser por PROXIMIDADE (ver
+        # step()). A fisica de colisao entre criaturas continua por padrao (shapes tem elasticidade).
 
         self.creatures = []
         self.foods = []
@@ -109,17 +85,58 @@ class SimulationEngine:
     def step(self, dt):
         """Atualiza um frame da simulação."""
         self.time_elapsed += dt
-        
-        # Reseta a flag de colisao antes da fisica rodar (o handler de colisao
-        # criatura x criatura a re-marca durante o physics.step() abaixo).
-        for creature in self.creatures:
-            creature.collided_with_creature_this_frame = False
 
         # Atualizar Física
         self.physics.step(dt)
 
+        # 1.4. Reproducao sexuada por PROXIMIDADE (BIT-22): dois adultos FERTEIS, ambos querendo
+        # acasalar (action_mate), dentro de MATING_RADIUS, fora de cooldown e com energia para
+        # sobreviver ao parto -> cruzam. Substitui o antigo handler de colisao (evento raro demais
+        # em espaco continuo esparso). O(n^2) sobre adultos vivos — trivial para a populacao-alvo.
+        for creature in self.creatures:
+            creature.sought_mate_this_frame = False
+
+        sexual_children = []
+        alive_adults = [c for c in self.creatures
+                        if c.is_alive and c.life_stage == LifeStage.ADULT]
+        radius_sq = MATING_RADIUS * MATING_RADIUS
+        for i in range(len(alive_adults)):
+            a = alive_adults[i]
+            if not (a.is_fertile and a.action_mate) or a.reproduction_cooldown > 0:
+                continue
+            if a.energy < REPRODUCTION_ENERGY_COST:
+                continue
+            for j in range(i + 1, len(alive_adults)):
+                b = alive_adults[j]
+                if not (b.is_fertile and b.action_mate) or b.reproduction_cooldown > 0:
+                    continue
+                if b.energy < REPRODUCTION_ENERGY_COST:
+                    continue
+                dx = a.body.position.x - b.body.position.x
+                dy = a.body.position.y - b.body.position.y
+                if dx * dx + dy * dy > radius_sq:
+                    continue
+                # Cruzam:
+                a.sought_mate_this_frame = True
+                b.sought_mate_this_frame = True
+                a.energy -= REPRODUCTION_ENERGY_COST
+                b.energy -= REPRODUCTION_ENERGY_COST
+                a.reproduction_cooldown = REPRODUCTION_COOLDOWN
+                b.reproduction_cooldown = REPRODUCTION_COOLDOWN
+                a.is_fertile = False  # re-conquistar a fertilidade comendo de novo
+                b.is_fertile = False
+                child_id = self.next_genome_id()
+                child_genome = organic_crossover(a.genome, b.genome, child_id, a.config)
+                mutate_genome(child_genome, a.config)
+                cx = (a.body.position.x + b.body.position.x) / 2
+                cy = (a.body.position.y + b.body.position.y) / 2
+                sexual_children.append(Creature(self, cx, cy, genome=child_genome))
+                break  # 'a' ja acasalou neste frame (cooldown), passa para o proximo adulto
+        for child in sexual_children:
+            self.add_creature(child)
+
         # 1.5. Reproducao assexuada: Action_Mate reaproveitado como sinal geral de
-        # "quero reproduzir" — se a criatura nao encontrou parceiro (colisao) neste
+        # "quero reproduzir" — se a criatura nao tinha parceiro viavel por perto neste
         # frame mas tem energia de sobra, clona o proprio genoma. Custo e cooldown
         # mais altos que o sexuado: via de emergencia, nao deve ser dominante.
         asexual_children = []
@@ -128,7 +145,7 @@ class SimulationEngine:
                 continue
             if creature.life_stage != LifeStage.ADULT:
                 continue
-            if creature.collided_with_creature_this_frame:
+            if creature.sought_mate_this_frame:
                 continue
             if creature.reproduction_cooldown > 0:
                 continue
@@ -218,8 +235,16 @@ class SimulationEngine:
                 for creature in self.creatures:
                     if len(self.oases) >= MAX_TOTAL_OASES:
                         break
+                    # O oasis nasce LONGE do sobrevivente (BIT-20): antes ele nascia em cima da posicao
+                    # dele, fazendo chover comida de graca justamente sobre quem ficou parado — o que
+                    # fechava o ciclo (parar -> populacao cai -> Eden -> comida gratis -> clonar).
+                    # O Eden segue sendo o seguro contra extincao, mas a comida se conquista andando.
+                    angle = random.uniform(0, 2 * math.pi)
+                    dist = random.uniform(EDEN_OASIS_MIN_DISTANCE, EDEN_OASIS_MAX_DISTANCE)
+                    ox = max(0.0, min(float(self.width), creature.body.position.x + dist * math.cos(angle)))
+                    oy = max(0.0, min(float(self.height), creature.body.position.y + dist * math.sin(angle)))
                     self.oases.append(Oasis(
-                        creature.body.position.x, creature.body.position.y,
+                        ox, oy,
                         radius=EDEN_OASIS_RADIUS, ttl=EDEN_OASIS_TTL, food_cap=EDEN_OASIS_FOOD_CAP,
                     ))
         else:

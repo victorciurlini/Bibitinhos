@@ -18,6 +18,31 @@ LATERAL_GRIP_RATE = 20.0  # taxa de amortecimento lateral (1/segundo), tunavel
 CREATURE_MASS = 1.0
 STARTING_ENERGY = 75.0  # 75% de max_energy: crias precisam comer antes de poder se reproduzir
 
+# BIT-22: reproducao sexuada por FERTILIDADE PERSISTENTE, nao por energia instantanea na colisao.
+# A criatura vira fertil ao atingir este limiar (tendo comido) e MANTEM a fertilidade mesmo com a
+# energia caindo no roaming, ate acasalar. O limiar e ALCANCAVEL de proposito (< max_energy); "comer
+# antes de acasalar" (BIT-16) e garantido pela flag has_eaten, nao pelo nivel de energia.
+FERTILITY_ENERGY_THRESHOLD = 60.0
+
+# --- Economia de energia (BIT-20): explorar tem que ser mais barato que ficar parado ---
+# O modelo antigo (thrust*speed*0.1 + |torque|*size*0.05) cobrava 5.0/s para andar e so 0.5/s
+# para girar no lugar. Com o metabolismo em cima, ficar parado girando sobrevivia 77s e explorar
+# sobrevivia 20s — a selecao natural estava otimizando corretamente para a paralisia, porque era
+# isso que o ambiente premiava. Aqui o sinal se inverte: girar parado passa a ser a PIOR estrategia.
+MOVEMENT_REFERENCE_SPEED = 35.0  # px/s: velocidade real a partir da qual a criatura conta como
+                                 # "explorando de verdade". 75% da terminal de 46.8 px/s medida sob
+                                 # damping=0.35 (BIT-17); folgada o bastante para nao punir os ~2.6s
+                                 # de aceleracao a partir do repouso.
+IDLE_PENALTY_RATE = 1.2          # energia/s de imposto de ociosidade, cheio quando parada.
+                                 # Calibrado (degrau 1 da escada de ajuste da spec): a 2.0 a multa
+                                 # somava-se a escassez de comida ja existente e a populacao colapsava
+                                 # (13 extincoes / 5 min). A 1.2 o ecossistema se sustenta (6 extincoes,
+                                 # contra 15 do codigo antigo) e girar parado continua sendo a PIOR
+                                 # estrategia — que e o ponto.
+MOTOR_FORWARD_COST = 0.6         # energia/s a full thrust (era efetivamente 5.0/s)
+SPIN_COST = 1.0                  # energia/s a full torque, mas so quando parada: curvar enquanto se
+                                 # move e de graca (a criatura precisa virar p/ perseguir comida)
+
 class LifeStage(Enum):
     EGG = 0
     JUVENILE = 1
@@ -121,7 +146,9 @@ class Creature:
         self.age = 0.0
         self.vision = [0.0] * 9
         self.reproduction_cooldown = 0.0
-        self.collided_with_creature_this_frame = False
+        self.sought_mate_this_frame = False  # BIT-22: substitui collided_with_creature_this_frame.
+        self.has_eaten = False   # BIT-22: setada ao comer (handler de colisao criatura x comida).
+        self.is_fertile = False  # BIT-22: fertilidade persistente para reproducao sexuada.
 
         # Cérebro NEAT: genoma injetado (reprodução futura) ou genoma zero (Gen 0)
         self.config = load_neat_config()
@@ -167,14 +194,28 @@ class Creature:
             self.life_stage = LifeStage.JUVENILE
 
         # Movimento vem da rede neural (cacheado em think(), 10 FPS), reaplicado a cada frame de fisica
-        # EGG nao move nem paga custo de motor: o output do cerebro nunca e aplicado fisicamente nesse estagio
+        # EGG nao move nem paga custo de motor nem de ociosidade: o output do cerebro nunca e aplicado
+        # fisicamente nesse estagio, entao multa-lo por estar parado seria puni-lo por existir.
         motor_cost = 0.0
+        idle_cost = 0.0
         if self.life_stage != LifeStage.EGG:
+            # Fator de movimento medido pela VELOCIDADE REAL do corpo, nao pelo output do motor: e isso
+            # que torna a multa imburlavel (travar contra a parede => velocidade ~0 => paga o imposto cheio).
+            # Medido ANTES do impulso deste frame, de proposito: o que interessa e o deslocamento que a
+            # criatura de fato conseguiu no passo de fisica anterior, nao o empurrao que ela acabou de dar
+            # (o Pymunk aplica o impulso na velocidade na hora, o que mascararia quem esta travado).
+            movement_factor = min(1.0, self.body.velocity.length / MOVEMENT_REFERENCE_SPEED)
+            idle_cost = IDLE_PENALTY_RATE * (1.0 - movement_factor)
+
             forward_thrust = max(0.0, self.motor_forward)  # sem propulsao deliberada pra tras
             forward_impulse = (forward_thrust * self.speed * dt, 0)
             self.body.apply_impulse_at_local_point(forward_impulse, (0, 0))
             self.body.torque = self.motor_torque * MOTOR_TORQUE_SCALE
-            motor_cost = forward_thrust * self.speed * 0.1 + abs(self.motor_torque) * self.size * 0.05
+
+            motor_cost = (
+                MOTOR_FORWARD_COST * forward_thrust
+                + SPIN_COST * abs(self.motor_torque) * (1.0 - movement_factor)
+            )
 
             # Grip lateral: elimina deslizamento de lado por inercia, mantendo a fisica real
             # (colisoes ainda empurram a criatura; ela so nao desliza de lado por conta propria)
@@ -184,9 +225,15 @@ class Creature:
             self.body.velocity = damped_local_velocity.rotated(self.body.angle)
 
         metabolism_cost = METABOLISM_RATE_BY_STAGE[self.life_stage]
-        self.energy -= dt * (motor_cost + metabolism_cost)
+        self.energy -= dt * (motor_cost + idle_cost + metabolism_cost)
         if self.energy <= 0:
             self.is_alive = False
+
+        # Fertilidade persistente (BIT-22): vira fertil ao ser ADULT, ja ter comido e alcancar o limiar.
+        # Uma vez fertil, permanece ate acasalar (o roaming faz a energia cair, mas nao tira a aptidao).
+        if (self.life_stage == LifeStage.ADULT and self.has_eaten
+                and self.energy >= FERTILITY_ENERGY_THRESHOLD):
+            self.is_fertile = True
             
     def die(self):
         self.is_alive = False

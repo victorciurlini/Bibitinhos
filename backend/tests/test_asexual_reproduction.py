@@ -1,7 +1,7 @@
 import pytest
 
 import simulation.engine as engine_module
-from simulation.creature import Creature, LifeStage, METABOLISM_RATE_BY_STAGE
+from simulation.creature import Creature, LifeStage, METABOLISM_RATE_BY_STAGE, IDLE_PENALTY_RATE
 from simulation.engine import (
     SimulationEngine,
     ASEXUAL_REPRODUCTION_ENERGY_COST,
@@ -12,8 +12,8 @@ from simulation.engine import (
 DT = 1 / 30.0
 
 
-def _make_solo_adult(engine, x=1000, y=1000, energy=100.0, action_mate=True):
-    """Cria uma unica criatura ADULT, longe de qualquer outra (sem colisao possivel)."""
+def _make_solo_adult(engine, x=700, y=700, energy=100.0, action_mate=True):
+    """Cria uma unica criatura ADULT, longe de qualquer outra (sem parceiro em alcance)."""
     c = Creature(engine, x=x, y=y)
     c.life_stage = LifeStage.ADULT
     c.action_mate = action_mate
@@ -22,14 +22,15 @@ def _make_solo_adult(engine, x=1000, y=1000, energy=100.0, action_mate=True):
     return c
 
 
-def _make_colliding_adult_pair(engine, x=1000, y=1000, offset=5, energy=100.0):
-    """Duas criaturas ADULT sobrepostas, prontas para colidir (reproducao sexuada)."""
+def _make_nearby_adult_pair(engine, x=700, y=700, offset=5, energy=100.0, is_fertile=True):
+    """Dois adultos dentro de MATING_RADIUS, ferteis (reproducao sexuada por proximidade — BIT-22)."""
     c1 = Creature(engine, x=x, y=y)
     c2 = Creature(engine, x=x + offset, y=y)
     for c in (c1, c2):
         c.life_stage = LifeStage.ADULT
         c.action_mate = True
         c.energy = energy
+        c.is_fertile = is_fertile
     engine.add_creature(c1)
     engine.add_creature(c2)
     return c1, c2
@@ -46,7 +47,12 @@ def test_asexual_reproduction_fires_when_alone_with_enough_energy():
     child = [c for c in engine.creatures if c is not parent][0]
     assert child.life_stage == LifeStage.EGG
 
-    expected_energy = 100.0 - ASEXUAL_REPRODUCTION_ENERGY_COST - DT * METABOLISM_RATE_BY_STAGE[LifeStage.ADULT]
+    # Parada, ela tambem paga o imposto de ociosidade do BIT-20 no frame do update.
+    expected_energy = (
+        100.0
+        - ASEXUAL_REPRODUCTION_ENERGY_COST
+        - DT * (METABOLISM_RATE_BY_STAGE[LifeStage.ADULT] + IDLE_PENALTY_RATE)
+    )
     assert parent.energy == pytest.approx(expected_energy)
 
     expected_cooldown = ASEXUAL_REPRODUCTION_COOLDOWN - DT
@@ -95,27 +101,28 @@ def test_asexual_reproduction_respects_cooldown():
     assert len(engine.creatures) == count_before
 
 
-def test_no_asexual_fallback_when_partner_collision_fails_sexual_conditions():
-    # Uma ADULT elegivel (energia alta, action_mate=True) colide com um parceiro
-    # que NAO atende as condicoes da via sexuada (aqui, JUVENILE) — a colisao em
-    # si (independente do resultado) marca collided_with_creature_this_frame,
-    # o que bloqueia o fallback assexuado: ela nao "esta sozinha" de verdade.
+def test_no_asexual_when_viable_partner_is_in_range():
+    # BIT-22: quando ha um parceiro VIAVEL (fertil, querendo, proximo) em alcance, a via sexuada
+    # dispara e seta sought_mate_this_frame, o que bloqueia o fallback assexuado no mesmo step —
+    # nasce exatamente 1 filho (sexuado), nao 1 por criatura via clonagem.
     engine = SimulationEngine()
-    c1, c2 = _make_colliding_adult_pair(engine, energy=100.0)
-    c2.life_stage = LifeStage.JUVENILE
+    c1, c2 = _make_nearby_adult_pair(engine, energy=100.0)
 
     count_before = len(engine.creatures)
     engine.step(DT)
 
-    assert len(engine.creatures) == count_before
+    assert len(engine.creatures) == count_before + 1
+    assert c1.sought_mate_this_frame and c2.sought_mate_this_frame
+    # Ambos consumiram a fertilidade no acasalamento sexuado (nao clonaram).
+    assert not c1.is_fertile and not c2.is_fertile
 
 
 def test_sexual_reproduction_takes_priority_over_asexual_in_same_frame():
-    # Duas ADULT colidindo, ambas com energia de sobra para os dois caminhos:
-    # so a via sexuada deve disparar (o cooldown que ela seta bloqueia o laco
-    # assexuado, que roda depois, no mesmo step()).
+    # Dois ADULT ferteis e proximos, ambos com energia de sobra para os dois caminhos:
+    # so a via sexuada deve disparar (roda antes e seta sought_mate_this_frame + cooldown,
+    # bloqueando o laco assexuado que roda depois, no mesmo step()).
     engine = SimulationEngine()
-    c1, c2 = _make_colliding_adult_pair(engine, energy=100.0)
+    c1, c2 = _make_nearby_adult_pair(engine, energy=100.0)
 
     count_before = len(engine.creatures)
     engine.step(DT)
