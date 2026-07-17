@@ -8,6 +8,9 @@ const HIT_SLOP_WORLD = 6; // folga do hit-test, em unidades de mundo
 const INSPECT_INTERVAL_MS = 150; // taxa de atualizacao do painel/controles (sem re-render a 30 FPS)
 const METRICS_SERIES_MAX = 600; // espelha METRICS_HISTORY_MAX do backend (~10 min a 1 amostra/s)
 
+// BIT-29: URL do WebSocket parametrizavel em build time (Docker); sem env, o dev local nao muda.
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8001/ws';
+
 const SimulationCanvas = () => {
   const canvasRef = useRef(null);
   const latestWorldState = useRef(null);
@@ -106,7 +109,7 @@ const SimulationCanvas = () => {
       .catch(() => {});
 
     // Setup WebSocket
-    const ws = new WebSocket('ws://localhost:8001/ws');
+    const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
 
     ws.onopen = () => {

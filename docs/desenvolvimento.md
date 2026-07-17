@@ -61,6 +61,40 @@ Programaticamente: `HeadlessRunner(initial_creatures, seed).run(ticks, snapshot_
 on_snapshot)` em `backend/simulation/runner.py`; `populate(engine, count)` é o mesmo
 bootstrap de população usado pelo `startup_event` do servidor.
 
+## Docker (BIT-29)
+
+Alternativa ao `manager.py` para subir o stack completo sem instalar Python/Node:
+
+```bash
+docker compose up --build
+```
+
+- Backend: `python:3.10-slim` + uvicorn, publicado em `http://localhost:8001`
+  (health em `/`, stream em `/ws`) — mesma porta do dev local.
+- Frontend: build multi-stage (`node:24-alpine` roda `npm run build` →
+  `nginx:alpine` serve o `dist/`), publicado em `http://localhost:5173`.
+- **`VITE_WS_URL`**: a URL do WebSocket é resolvida em **build time** (o Vite
+  injeta no bundle), por isso é um build `arg` no `docker-compose.yml`, não env
+  de runtime. Default: `ws://localhost:8001/ws` — o browser fala com o backend
+  pela porta publicada no host, não pelo hostname interno do compose. Para
+  servir em outro host, ajuste o arg e refaça o build do frontend.
+- Sem Docker nada muda: o fallback no `SimulationCanvas.jsx`
+  (`import.meta.env.VITE_WS_URL || 'ws://localhost:8001/ws'`) mantém o
+  desenvolvimento local idêntico.
+
+## CI (GitHub Actions)
+
+Workflow `CI` (`.github/workflows/ci.yml`) roda a cada push/PR em
+`develop`/`master`, com dois jobs paralelos:
+
+- **backend-tests**: Python 3.10, `pip install -r requirements.txt`,
+  `python -m pytest tests/ --tb=short`.
+- **frontend-build**: Node 24, `npm ci`, `npm run lint`, `npm run build`.
+
+Sem push para registry, coverage ou deploy (fora de escopo). `npm run test`
+não roda no CI por enquanto — não há arquivos de teste no frontend e o
+`vitest run` sem testes falha; adicionar ao workflow quando existirem.
+
 ## Workflow de tasks (`.sdd/tasks/`)
 
 Sem Linear — todo o fluxo é local, e **a pasta onde a task está reflete o seu estado**:
