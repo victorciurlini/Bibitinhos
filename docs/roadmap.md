@@ -42,7 +42,16 @@ Resumo por fase. O racional e as evidências de cada BIT estão no
 
 ## 🔧 Em refinamento (specs prontas em `.sdd/tasks/refiner/`)
 
-Nenhuma no momento — não há spec pendente aguardando implementação.
+Milestone 4, na ordem de implementação prevista:
+
+- **BIT-26 — Painéis de métricas populacionais:** agregados no `state_update` + histórico
+  no backend + painel com sparklines SVG no HUD.
+- **BIT-27 — Inspetor de rede neural:** serialização do genoma NEAT + mensagem
+  `inspect_creature`/`creature_inspection` + grafo SVG no InspectorPanel.
+- **BIT-28 — Modo headless:** `HeadlessRunner` síncrono + `backend/cli.py` com snapshots
+  de métricas (depende do BIT-26).
+- **BIT-29 — Docker e CI:** Dockerfiles + docker-compose + GitHub Actions (pytest e
+  build/lint do frontend).
 
 ## 🔜 Próximos candidatos (sem spec)
 
@@ -53,12 +62,7 @@ Nenhuma no momento — não há spec pendente aguardando implementação.
 
 ## 🗺️ Longo prazo
 
-**Milestone 4 (visão original, não iniciado):**
-
-- Painéis de métricas populacionais.
-- Inspetor de rede neural (visualizar o genoma/cérebro de um bibite).
-- Modo headless (rodar a simulação sem frontend).
-- Docker / CI.
+**Milestone 4:** movido para a seção 🔧 (specs BIT-26 a BIT-29 em refinamento).
 
 **Débitos técnicos conhecidos:**
 
