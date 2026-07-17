@@ -41,7 +41,7 @@ def read_root():
 
 # Loop de simulação e engine
 from simulation.engine import SimulationEngine
-from simulation.creature import Creature
+from simulation.runner import populate
 from simulation.params import set_param, reset_params
 from simulation.rtneat_wrapper import genome_to_dict
 
@@ -131,8 +131,7 @@ async def simulation_loop():
 
 @app.on_event("startup")
 async def startup_event():
-    # Adicionar algumas criaturas iniciais
-    for _ in range(10):
-        engine.add_creature(Creature(engine))
+    # Bootstrap da populacao inicial (BIT-28: mesma funcao usada pelo modo headless)
+    populate(engine, 10)
     # Inicia o loop da simulação em background
     app.state.sim_task = asyncio.create_task(simulation_loop())

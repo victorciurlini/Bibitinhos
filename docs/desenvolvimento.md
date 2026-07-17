@@ -32,6 +32,35 @@ Convenções da suíte:
   `manager.py` por alguns minutos e observar o comportamento (as specs listam os
   critérios observáveis).
 
+## Modo headless (BIT-28)
+
+Roda a simulação sem frontend e sem servidor — loop síncrono em velocidade máxima
+(sem `sleep`/asyncio), útil para experimentos longos, benchmarks e CI:
+
+```bash
+cd backend
+venv\Scripts\python.exe cli.py --ticks 9000 --seed 42 --output run.json
+```
+
+Flags (todas opcionais):
+
+| Flag | Default | Descrição |
+|---|---|---|
+| `--ticks` | 9000 | steps de 1/30 s (9000 = 5 min simulados) |
+| `--creatures` | 10 | população inicial (Gen 0) |
+| `--snapshot-interval` | 300 | ticks entre snapshots de métricas (300 = 10 s) |
+| `--seed` | nenhum | reprodutibilidade: mesmo seed → mesma série de snapshots |
+| `--output` | nenhum | arquivo JSON de saída (sem ele, só imprime o progresso) |
+
+Saída JSON: `{"metadata": {...flags do run...}, "snapshots": [...]}`, onde cada
+snapshot é o dict de `compute_metrics()` (contrato do BIT-26: `time`, `population`,
+`stage_counts`, `avg_energy`, `avg_age`, `births_total`, `deaths_total`, `food_count`,
+`oases_count`). Sempre há um snapshot no tick 0 e um no tick final.
+
+Programaticamente: `HeadlessRunner(initial_creatures, seed).run(ticks, snapshot_interval,
+on_snapshot)` em `backend/simulation/runner.py`; `populate(engine, count)` é o mesmo
+bootstrap de população usado pelo `startup_event` do servidor.
+
 ## Workflow de tasks (`.sdd/tasks/`)
 
 Sem Linear — todo o fluxo é local, e **a pasta onde a task está reflete o seu estado**:

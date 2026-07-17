@@ -60,6 +60,7 @@ Decisões consolidadas (ver `docs/historico.md` e specs em `.sdd/tasks/implement
 | `rtneat_wrapper.py` | Config NEAT cacheada, `create_zero_genome()` (com seeds da Gen 0), `organic_crossover()`, `clone_genome()`, `mutate_genome()`. A docstring do módulo é a **fonte canônica do contrato de I/O** (16 in / 4 out). |
 | `food.py` | Corpo **dinâmico** com 1% da massa da criatura (BIT-08: ação-reação real, comida é empurrável), TTL de 30s (apodrece, BIT-18). |
 | `oasis.py` | `Oasis` é uma zona lógica (sem corpo Pymunk) que delimita onde comida pode nascer. Constantes do Jardim do Éden também vivem aqui. |
+| `runner.py` | Modo headless (BIT-28): `populate()` (bootstrap da Gen 0, também usado pelo `startup_event`) e `HeadlessRunner` (loop síncrono em velocidade máxima com snapshots de `compute_metrics()`). Entry point: `backend/cli.py` (argparse; `--ticks/--creatures/--snapshot-interval/--seed/--output`) — ver `docs/desenvolvimento.md`. |
 
 ## Contrato WebSocket
 
@@ -198,7 +199,7 @@ inputs → hidden → outputs), dentro da seção colapsável "Rede neural" do `
 - `Action_Grab_Drop` (output 2) é lido do cérebro, mas não há mecânica de grab/carry
   nem `Weld Joint`; `Load_Sensor` (input 13) depende de `is_holding`, que nunca muda.
 - Colisor da criatura é **círculo**, não cápsula (simplificação da visão original).
-- Não há modo headless, Docker nem CI (painéis de métricas populacionais existem desde o
-  BIT-26; inspetor de rede neural desde o BIT-27).
+- Não há Docker nem CI (modo headless existe desde o BIT-28; painéis de métricas
+  populacionais desde o BIT-26; inspetor de rede neural desde o BIT-27).
 - `generation` no state é fixo em 1 (não há contagem real de gerações — evolução é
   contínua, não geracional).
