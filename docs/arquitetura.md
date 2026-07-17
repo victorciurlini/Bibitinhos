@@ -96,9 +96,29 @@ Mensagem única, `type: "state_update"`, emitida a 30 FPS:
     "action_grab_drop": false // BIT-24: saída do cérebro (bool)
   }],
   "foods":  [{ "x": 0, "y": 0, "energy_value": 40.0, "radius": 5.0, "color": "#ffff00" }],
-  "oases":  [{ "x": 0, "y": 0, "radius": 150.0, "ttl": 20.0, "ttl_fraction": 0.8 }]
+  "oases":  [{ "x": 0, "y": 0, "radius": 150.0, "ttl": 20.0, "ttl_fraction": 0.8 }],
+  "metrics": {                 // BIT-26: agregados populacionais correntes (campo aditivo)
+    "time": 123.4,             // == time_elapsed no momento do snapshot
+    "population": 14,
+    "stage_counts": { "EGG": 2, "JUVENILE": 3, "ADULT": 8, "ELDER": 1 },
+    "avg_energy": 61.2,
+    "avg_age": 40.7,
+    "births_total": 12,        // acumulado desde o boot (só reprodução; respawn do Éden não conta)
+    "deaths_total": 8,         // acumulado desde o boot
+    "food_count": 87,
+    "oases_count": 3
+  }
 }
 ```
+
+### REST: `GET /metrics/history` (BIT-26)
+
+Histórico das métricas populacionais, amostrado pelo engine a cada 1 s **simulado**
+(`METRICS_SAMPLE_INTERVAL`) num `deque` com cap de 600 amostras (`METRICS_HISTORY_MAX`,
+~10 min). Resposta: `{"history": [<amostras no mesmo formato do campo "metrics">]}` em
+ordem cronológica. Usado só para **bootstrap** do painel de métricas do HUD (a série
+sobrevive a reloads/reconexões do frontend); o broadcast de 30 FPS carrega apenas os
+agregados correntes — a série temporal nunca infla o `state_update`.
 
 ### Cliente → servidor (BIT-24, texto JSON no `/ws` existente)
 
@@ -147,6 +167,7 @@ validados/coeridos no servidor (não se confia no cliente).
 - `Action_Grab_Drop` (output 2) é lido do cérebro, mas não há mecânica de grab/carry
   nem `Weld Joint`; `Load_Sensor` (input 13) depende de `is_holding`, que nunca muda.
 - Colisor da criatura é **círculo**, não cápsula (simplificação da visão original).
-- Não há modo headless, Docker, CI, painéis de métricas nem inspetor de rede neural.
+- Não há modo headless, Docker, CI nem inspetor de rede neural (painéis de métricas
+  populacionais existem desde o BIT-26).
 - `generation` no state é fixo em 1 (não há contagem real de gerações — evolução é
   contínua, não geracional).

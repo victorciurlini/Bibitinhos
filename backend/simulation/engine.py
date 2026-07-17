@@ -4,6 +4,7 @@ from simulation.creature import Creature, LifeStage
 from simulation.sensors import compute_vision, VISION_RADIUS, VISION_FOV_DEGREES
 from simulation.rtneat_wrapper import organic_crossover, mutate_genome, clone_genome
 from simulation.params import get_params
+from simulation.metrics import compute_metrics, METRICS_SAMPLE_INTERVAL, METRICS_HISTORY_MAX
 from simulation.oasis import (
     Oasis,
     MAX_ACTIVE_OASES,
@@ -18,6 +19,7 @@ from simulation.oasis import (
     EDEN_OASIS_MIN_DISTANCE,
     EDEN_OASIS_MAX_DISTANCE,
 )
+from collections import deque
 import math
 import random
 
@@ -76,6 +78,14 @@ class SimulationEngine:
         self._next_genome_id = 0
         self.oases = []
         self._eden_active = False
+
+        # BIT-26: metricas populacionais. Contadores acumulados desde o boot do engine
+        # (so reproducao conta como nascimento — respawn do Eden nao) e historico amostrado
+        # a cada METRICS_SAMPLE_INTERVAL segundos simulados, com cap no proprio deque.
+        self.births_total = 0
+        self.deaths_total = 0
+        self.metrics_history = deque(maxlen=METRICS_HISTORY_MAX)
+        self._metrics_accumulator = 0.0
 
         # BIT-24: controle interativo de tempo e arrasto.
         self.paused = False
@@ -197,6 +207,7 @@ class SimulationEngine:
                 break  # 'a' ja acasalou neste frame (cooldown), passa para o proximo adulto
         for child in sexual_children:
             self.add_creature(child)
+        self.births_total += len(sexual_children)
 
         # 1.5. Reproducao assexuada: Action_Mate reaproveitado como sinal geral de
         # "quero reproduzir" — se a criatura nao tinha parceiro viavel por perto neste
@@ -229,6 +240,7 @@ class SimulationEngine:
 
         for child in asexual_children:
             self.add_creature(child)
+        self.births_total += len(asexual_children)
 
         # 0.5. Comida apodrece: TTL libera vaga no cap global (MAX_TOTAL_FOOD), sem isso
         # comida orfa de oasis expirados satura o mapa e a renovacao para (BIT-18).
@@ -283,6 +295,7 @@ class SimulationEngine:
                 alive_creatures.append(c)
             else:
                 c.die()
+                self.deaths_total += 1
         self.creatures = alive_creatures
 
         # 5. Remover comida consumida
@@ -315,6 +328,14 @@ class SimulationEngine:
         else:
             self._eden_active = False
 
+        # 7. Amostragem do historico de metricas (BIT-26): 1 amostra por segundo simulado.
+        # Amostrado no fim do step, depois da limpeza de mortos — o snapshot reflete o estado
+        # que o get_state() deste frame veria. Com dt=1/30 o while nunca acumula 2 intervalos.
+        self._metrics_accumulator += dt
+        while self._metrics_accumulator >= METRICS_SAMPLE_INTERVAL:
+            self._metrics_accumulator -= METRICS_SAMPLE_INTERVAL
+            self.metrics_history.append(compute_metrics(self))
+
 
     def get_state(self):
         return {
@@ -330,4 +351,5 @@ class SimulationEngine:
             "foods": [f.to_dict() for f in self.foods],
             "oases": [o.to_dict() for o in self.oases],
             "params": get_params(self),
+            "metrics": compute_metrics(self),
         }

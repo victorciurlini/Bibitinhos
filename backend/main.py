@@ -46,6 +46,15 @@ from simulation.params import set_param, reset_params
 
 engine = SimulationEngine()
 
+@app.get("/metrics/history")
+def metrics_history():
+    """Historico amostrado de metricas populacionais (BIT-26) — bootstrap do painel do HUD.
+
+    O broadcast de 30 FPS carrega so os agregados correntes (campo "metrics" do state_update);
+    a serie temporal completa vive aqui, em ordem cronologica (ate METRICS_HISTORY_MAX itens).
+    """
+    return {"history": list(engine.metrics_history)}
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)

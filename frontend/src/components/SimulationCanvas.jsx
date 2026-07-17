@@ -6,6 +6,7 @@ const TINT_ALPHA = 0.55;
 const DRAG_THRESHOLD_PX = 5; // deslocamento de tela que separa clique de arrasto
 const HIT_SLOP_WORLD = 6; // folga do hit-test, em unidades de mundo
 const INSPECT_INTERVAL_MS = 150; // taxa de atualizacao do painel/controles (sem re-render a 30 FPS)
+const METRICS_SERIES_MAX = 600; // espelha METRICS_HISTORY_MAX do backend (~10 min a 1 amostra/s)
 
 const SimulationCanvas = () => {
   const canvasRef = useRef(null);
@@ -26,6 +27,12 @@ const SimulationCanvas = () => {
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [params, setParams] = useState(null);
+
+  // BIT-26: agregados correntes (do state_update) + serie temporal local (1 amostra/s simulado),
+  // semeada via GET /metrics/history para sobreviver a reloads/reconexoes do frontend.
+  const [metrics, setMetrics] = useState(null);
+  const metricsSeriesRef = useRef([]);
+  const [metricsSeries, setMetricsSeries] = useState([]);
 
   // Envia um comando pelo WS se ele estiver aberto.
   const sendCommand = (obj) => {
@@ -80,6 +87,18 @@ const SimulationCanvas = () => {
     
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
+
+    // BIT-26: semeia a serie de metricas com o historico do backend (bootstrap do painel).
+    // Falha de rede e silenciosa de proposito: a serie passa a crescer so com o WS mesmo.
+    fetch('http://localhost:8001/metrics/history')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && Array.isArray(data.history)) {
+          metricsSeriesRef.current = data.history.slice(-METRICS_SERIES_MAX);
+          setMetricsSeries([...metricsSeriesRef.current]);
+        }
+      })
+      .catch(() => {});
 
     // Setup WebSocket
     const ws = new WebSocket('ws://localhost:8001/ws');
@@ -339,6 +358,18 @@ const SimulationCanvas = () => {
       if (typeof data.paused === 'boolean') setPaused(data.paused);
       if (typeof data.speed === 'number') setSpeed(data.speed);
       if (data.params && typeof data.params === 'object') setParams(data.params);
+      if (data.metrics && typeof data.metrics === 'object') {
+        const m = data.metrics;
+        setMetrics(m);
+        // Apenda 1 amostra por segundo simulado (mesmo criterio de amostragem do backend).
+        const series = metricsSeriesRef.current;
+        const last = series.length > 0 ? series[series.length - 1] : null;
+        if (typeof m.time === 'number' && (!last || Math.floor(m.time) > Math.floor(last.time))) {
+          series.push(m);
+          if (series.length > METRICS_SERIES_MAX) series.shift();
+          setMetricsSeries([...series]);
+        }
+      }
       const id = selectedIdRef.current;
       const sel = id != null && data.creatures ? data.creatures.find(c => c.id === id) : null;
       setInspectedCreature(sel || null);
@@ -397,6 +428,8 @@ const SimulationCanvas = () => {
         speed={speed}
         creature={inspectedCreature}
         params={params}
+        metrics={metrics}
+        metricsSeries={metricsSeries}
         onCommand={sendCommand}
       />
     </div>

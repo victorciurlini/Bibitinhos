@@ -1,11 +1,12 @@
 /* eslint-disable react/prop-types */
 // Menu HUD recolhivel no canto superior esquerdo. Escondido por padrao: mostra so o botao de
-// expansao. Expandido, abre um painel de vidro teal a esquerda com as secoes Tempo, Inspetor e
-// Parametros. Estetica "bioluminescente de laboratorio" (ver hudTheme.js). O botao ecoa o
+// expansao. Expandido, abre um painel de vidro teal a esquerda com as secoes Tempo, Inspetor,
+// Metricas e Parametros. Estetica "bioluminescente de laboratorio" (ver hudTheme.js). O botao ecoa o
 // estado do servidor via props.
 import { useState } from 'react';
 import TimeControls from './TimeControls';
 import InspectorPanel from './InspectorPanel';
+import MetricsPanel from './MetricsPanel';
 import ParamsPanel from './ParamsPanel';
 import { HUD, panelStyle, sectionLabelStyle, sectionRuleStyle } from './hudTheme';
 import './hud.css';
@@ -96,7 +97,7 @@ const SectionLabel = ({ children }) => (
   </div>
 );
 
-const ControlMenu = ({ paused, speed, creature, params, onCommand }) => {
+const ControlMenu = ({ paused, speed, creature, params, metrics, metricsSeries, onCommand }) => {
   const [expanded, setExpanded] = useState(false);
 
   if (!expanded) {
@@ -139,6 +140,9 @@ const ControlMenu = ({ paused, speed, creature, params, onCommand }) => {
       {creature
         ? <InspectorPanel creature={creature} />
         : <div style={HINT_STYLE}>Clique num bibite para inspecionar.</div>}
+
+      <SectionLabel>Metricas</SectionLabel>
+      <MetricsPanel metrics={metrics} series={metricsSeries} />
 
       <SectionLabel>Parametros</SectionLabel>
       <ParamsPanel params={params} onCommand={onCommand} />
