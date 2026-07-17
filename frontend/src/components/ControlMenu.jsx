@@ -97,7 +97,7 @@ const SectionLabel = ({ children }) => (
   </div>
 );
 
-const ControlMenu = ({ paused, speed, creature, params, metrics, metricsSeries, onCommand }) => {
+const ControlMenu = ({ paused, speed, creature, genome, params, metrics, metricsSeries, onCommand }) => {
   const [expanded, setExpanded] = useState(false);
 
   if (!expanded) {
@@ -138,7 +138,7 @@ const ControlMenu = ({ paused, speed, creature, params, metrics, metricsSeries, 
 
       <SectionLabel>Inspetor</SectionLabel>
       {creature
-        ? <InspectorPanel creature={creature} />
+        ? <InspectorPanel creature={creature} genome={genome} />
         : <div style={HINT_STYLE}>Clique num bibite para inspecionar.</div>}
 
       <SectionLabel>Metricas</SectionLabel>

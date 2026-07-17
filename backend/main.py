@@ -43,8 +43,24 @@ def read_root():
 from simulation.engine import SimulationEngine
 from simulation.creature import Creature
 from simulation.params import set_param, reset_params
+from simulation.rtneat_wrapper import genome_to_dict
 
 engine = SimulationEngine()
+
+
+def build_creature_inspection(engine, creature_id):
+    """Monta o payload unicast creature_inspection (BIT-27).
+
+    Puro (nao toca o socket) para ser testavel direto — o TestClient nao roda
+    neste venv (starlette 0.27 + httpx 0.28 nao convivem; mesmo desvio do BIT-26).
+    Criatura inexistente/morta => genome null (o cliente trata sem quebrar).
+    """
+    creature = next((c for c in engine.creatures if c.id == creature_id), None)
+    return {
+        "type": "creature_inspection",
+        "creature_id": creature_id,
+        "genome": genome_to_dict(creature.genome, creature.config) if creature else None,
+    }
 
 @app.get("/metrics/history")
 def metrics_history():
@@ -83,6 +99,11 @@ async def websocket_endpoint(websocket: WebSocket):
                 set_param(engine, msg.get("name"), msg.get("value"))
             elif action == "reset_params":
                 reset_params(engine)
+            elif action == "inspect_creature":
+                # Resposta UNICAST ao socket que pediu (o genoma nao vai no broadcast).
+                await websocket.send_json(
+                    build_creature_inspection(engine, msg.get("creature_id"))
+                )
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         engine.end_drag()  # cliente caiu no meio de um drag: solta a criatura

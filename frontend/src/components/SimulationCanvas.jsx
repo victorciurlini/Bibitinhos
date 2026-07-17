@@ -22,8 +22,13 @@ const SimulationCanvas = () => {
   const selectedIdRef = useRef(null);
   const dragRef = useRef(null); // null ou { creatureId, startX, startY, moved }
 
+  // BIT-27: ultima mensagem creature_inspection recebida (unicast, uma por selecao).
+  // Ref no hot-path do WS; o espelho reativo so expoe o genoma da selecao corrente.
+  const inspectedGenomeRef = useRef(null);
+
   // Espelho reativo (~150 ms) do que o painel/controles precisam mostrar.
   const [inspectedCreature, setInspectedCreature] = useState(null);
+  const [inspectedGenome, setInspectedGenome] = useState(null);
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [params, setParams] = useState(null);
@@ -111,7 +116,13 @@ const SimulationCanvas = () => {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        latestWorldState.current = data;
+        // BIT-27: roteamento por tipo — creature_inspection (unicast) nao pode
+        // poluir latestWorldState (o renderLoop assume o formato do state_update).
+        if (data.type === 'creature_inspection') {
+          inspectedGenomeRef.current = data;
+        } else if (data.type === 'state_update') {
+          latestWorldState.current = data;
+        }
       } catch (e) {
         console.error('Error parsing WebSocket message:', e);
       }
@@ -337,6 +348,12 @@ const SimulationCanvas = () => {
           const w = toWorld(e);
           const hit = hitTest(w.x, w.y);
           selectedIdRef.current = hit ? hit.id : null;
+          // BIT-27: nova selecao pede o genoma UMA vez (ele e imutavel em vida);
+          // deselecao (ou troca) descarta o genoma anterior.
+          inspectedGenomeRef.current = null;
+          if (hit) {
+            sendCommand({ action: 'inspect_creature', creature_id: hit.id });
+          }
         }
       }
       dragRef.current = null;
@@ -373,6 +390,10 @@ const SimulationCanvas = () => {
       const id = selectedIdRef.current;
       const sel = id != null && data.creatures ? data.creatures.find(c => c.id === id) : null;
       setInspectedCreature(sel || null);
+      // BIT-27: expoe o genoma so se a resposta unicast corresponde a selecao corrente
+      // (criatura morta/deselecionada => null; respostas atrasadas de outra selecao tambem).
+      const insp = inspectedGenomeRef.current;
+      setInspectedGenome(insp && insp.creature_id === selectedIdRef.current ? insp.genome : null);
     }, INSPECT_INTERVAL_MS);
 
     return () => {
@@ -427,6 +448,7 @@ const SimulationCanvas = () => {
         paused={paused}
         speed={speed}
         creature={inspectedCreature}
+        genome={inspectedGenome}
         params={params}
         metrics={metrics}
         metricsSeries={metricsSeries}

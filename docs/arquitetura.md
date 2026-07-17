@@ -133,6 +133,7 @@ validados/coeridos no servidor (não se confia no cliente).
 {"action": "drag", "phase": "start", "creature_id": 42}
 {"action": "drag", "phase": "move",  "creature_id": 42, "x": 812.5, "y": 440.0}  // coords de MUNDO
 {"action": "drag", "phase": "end",   "creature_id": 42}
+{"action": "inspect_creature", "creature_id": 42}       // BIT-27: pede o genoma (resposta unicast)
 ```
 
 - **Controle de tempo** (`set_time_control`): pausa/velocidade por **substeps de `dt` fixo**
@@ -144,6 +145,36 @@ validados/coeridos no servidor (não se confia no cliente).
   simulação pausada. A criatura arrastada continua pagando metabolismo/ociosidade e sujeita a
   colisões (comer/acasalar no caminho) — emergente, não é bug. Se ela morre durante o drag, é
   solta no `step()` seguinte; a desconexão do cliente também solta (`end_drag`).
+- **Inspeção de genoma** (`inspect_creature`, BIT-27): o cliente pede o genoma **uma vez por
+  seleção** (o genoma é imutável durante a vida da criatura) e o servidor responde em
+  **unicast** — só ao socket que pediu, nunca no broadcast (o `state_update` fica intocado).
+
+### Servidor → cliente (`creature_inspection`, unicast, BIT-27)
+
+Resposta à ação `inspect_creature`. Serialização em `rtneat_wrapper.genome_to_dict()` (dono do
+contrato NEAT): os nodes de **input** não existem em `genome.nodes` no NEAT 0.92 — vêm de
+`config.genome_config.input_keys` (-1..-16), com labels do contrato (`INPUT_LABELS`/`OUTPUT_LABELS`).
+
+```jsonc
+{
+  "type": "creature_inspection",
+  "creature_id": 42,
+  "genome": {                    // null se a criatura não existe mais
+    "key": 42,
+    "nodes": {
+      "-1": { "key": -1, "type": "input",  "label": "Visual_Sector_0" },
+      "0":  { "key": 0,  "type": "output", "label": "Motor_Forward", "bias": 0.49, "activation": "tanh" },
+      "137":{ "key": 137,"type": "hidden", "bias": 0.0, "activation": "tanh" }  // hidden não tem label
+    },
+    "connections": [
+      { "from": -1, "to": 0, "weight": 0.5, "enabled": true }
+    ]
+  }
+}
+```
+
+No frontend, o grafo é renderizado em SVG puro por `NeuralNetworkViewer.jsx` (3 colunas fixas:
+inputs → hidden → outputs), dentro da seção colapsável "Rede neural" do `InspectorPanel`.
 
 ## Frontend
 
@@ -167,7 +198,7 @@ validados/coeridos no servidor (não se confia no cliente).
 - `Action_Grab_Drop` (output 2) é lido do cérebro, mas não há mecânica de grab/carry
   nem `Weld Joint`; `Load_Sensor` (input 13) depende de `is_holding`, que nunca muda.
 - Colisor da criatura é **círculo**, não cápsula (simplificação da visão original).
-- Não há modo headless, Docker, CI nem inspetor de rede neural (painéis de métricas
-  populacionais existem desde o BIT-26).
+- Não há modo headless, Docker nem CI (painéis de métricas populacionais existem desde o
+  BIT-26; inspetor de rede neural desde o BIT-27).
 - `generation` no state é fixo em 1 (não há contagem real de gerações — evolução é
   contínua, não geracional).

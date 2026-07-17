@@ -70,6 +70,18 @@ ACTION_MATE_NODE_KEY = 3
 ACTION_MATE_SEED_BIAS_MIN = 1.5
 ACTION_MATE_SEED_BIAS_MAX = 2.5
 
+# Labels legiveis do contrato de I/O (BIT-27), espelhando a docstring do modulo acima.
+# INPUT_LABELS[i] casa com o node key -(i+1) (mesma ordem de config.genome_config.input_keys);
+# OUTPUT_LABELS[i] casa com o node key i (output_keys 0..3). Usados pelo inspetor de rede
+# neural do HUD — a ordem e parte do contrato estavel, nao reordene.
+INPUT_LABELS = [
+    "Visual_Sector_0", "Visual_Sector_1", "Visual_Sector_2", "Visual_Sector_3",
+    "Visual_Sector_4", "Visual_Sector_5", "Visual_Sector_6", "Visual_Sector_7",
+    "Visual_Sector_8", "Energy_Level", "Age_Degradation", "Hormonal_Level",
+    "Biological_Clock", "Load_Sensor", "Kinetic_Linear", "Kinetic_Angular",
+]
+OUTPUT_LABELS = ["Motor_Forward", "Motor_Torque", "Action_Grab_Drop", "Action_Mate"]
+
 _config_cache = {}
 
 
@@ -145,3 +157,31 @@ def clone_genome(genome, genome_id, config):
     clone = copy.deepcopy(genome)
     clone.key = genome_id
     return clone
+
+
+def genome_to_dict(genome, config):
+    """Serializa a topologia do genoma em dict JSON-safe para o inspetor (BIT-27).
+
+    Os nodes de INPUT nao existem em genome.nodes no NEAT 0.92 (sao implicitos);
+    vem de config.genome_config.input_keys (-1..-16, na ordem do contrato).
+    genome.nodes contem apenas outputs (0..3) e hidden (>= 4).
+    """
+    gc = config.genome_config
+    nodes = {}
+    for i, key in enumerate(gc.input_keys):
+        nodes[str(key)] = {"key": key, "type": "input", "label": INPUT_LABELS[i]}
+    for key, node in genome.nodes.items():
+        entry = {
+            "key": key,
+            "type": "output" if key in gc.output_keys else "hidden",
+            "bias": node.bias,
+            "activation": node.activation,
+        }
+        if key in gc.output_keys:
+            entry["label"] = OUTPUT_LABELS[gc.output_keys.index(key)]
+        nodes[str(key)] = entry
+    connections = [
+        {"from": in_key, "to": out_key, "weight": conn.weight, "enabled": bool(conn.enabled)}
+        for (in_key, out_key), conn in genome.connections.items()
+    ]
+    return {"key": genome.key, "nodes": nodes, "connections": connections}

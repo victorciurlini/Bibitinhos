@@ -1,8 +1,11 @@
 /* eslint-disable react/prop-types */
 // Estado ao vivo do bibite selecionado. Conteudo embutivel (renderiza inline dentro do
-// ControlMenu). Recebe `creature` (objeto do state) ou null. Estetica bioluminescente
-// (ver hudTheme.js): sinais de visao/cerebro positivos no acento, negativos no ambar.
+// ControlMenu). Recebe `creature` (objeto do state) ou null, e `genome` (topologia da
+// rede recebida via creature_inspection, BIT-27) ou null enquanto carrega. Estetica
+// bioluminescente (ver hudTheme.js): sinais positivos no acento, negativos no ambar.
+import { useState } from 'react';
 import { HUD } from './hudTheme';
+import NeuralNetworkViewer from './NeuralNetworkViewer';
 
 const PANEL_STYLE = {
   color: HUD.text,
@@ -12,6 +15,24 @@ const PANEL_STYLE = {
 };
 
 const LABEL_STYLE = { color: HUD.textDim, fontFamily: HUD.fontUi, fontSize: '11px' };
+
+// Cabecalho de grupo colapsavel — mesmo padrao visual dos grupos do ParamsPanel (.hud-group).
+const GROUP_HEADER_STYLE = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 7,
+  cursor: 'pointer',
+  padding: '5px 4px',
+  marginTop: 9,
+  borderRadius: 5,
+  fontFamily: HUD.fontUi,
+  fontSize: '11.5px',
+  fontWeight: 600,
+  color: HUD.text,
+  userSelect: 'none',
+};
+
+const CHEVRON_STYLE = { color: HUD.accent, fontSize: '10px', width: 10 };
 
 // Barra horizontal simples (0..1) — usada para energia.
 const Bar = ({ frac, color }) => (
@@ -102,7 +123,10 @@ const ActionBadge = ({ label, on }) => (
   </span>
 );
 
-const InspectorPanel = ({ creature }) => {
+const InspectorPanel = ({ creature, genome }) => {
+  // Secao da rede aberta por padrao: ver o cerebro e o proposito do inspetor (BIT-27).
+  const [netOpen, setNetOpen] = useState(true);
+
   if (!creature) return null;
 
   const color = creature.color || HUD.accent;
@@ -138,6 +162,24 @@ const InspectorPanel = ({ creature }) => {
         <ActionBadge label="acasalar" on={!!creature.action_mate} />
         <ActionBadge label="pegar/soltar" on={!!creature.action_grab_drop} />
       </div>
+
+      <div
+        className="hud-btn hud-group"
+        style={GROUP_HEADER_STYLE}
+        onClick={() => setNetOpen((open) => !open)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setNetOpen((open) => !open); }}
+        aria-expanded={netOpen}
+      >
+        <span style={CHEVRON_STYLE}>{netOpen ? '▾' : '▸'}</span>
+        <span>Rede neural</span>
+      </div>
+      {netOpen && (
+        genome
+          ? <NeuralNetworkViewer genome={genome} />
+          : <div style={{ ...LABEL_STYLE, padding: '2px 4px' }}>carregando rede…</div>
+      )}
     </div>
   );
 };
