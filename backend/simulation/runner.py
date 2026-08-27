@@ -13,7 +13,7 @@ SIM_DT = 1 / 30.0  # mesmo dt fixo do simulation_loop (BIT-24: dt nunca muda)
 def populate(engine, count=10):
     """Bootstrap da populacao inicial (Gen 0)."""
     for _ in range(count):
-        engine.add_creature(Creature(engine))
+        engine.add_creature(Creature(engine, generation=0))
 
 
 class HeadlessRunner:

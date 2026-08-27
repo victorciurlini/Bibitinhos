@@ -56,6 +56,7 @@ class SimulationEngine:
             if food.is_active and creature.is_alive:
                 creature.energy = min(creature.energy + food.energy_value, creature.max_energy)
                 creature.has_eaten = True  # BIT-22: habilita fertilidade (comer antes de acasalar)
+                creature.food_eaten += 1   # BIT-30: contador de linhagem
                 food.consume()
             return True  # deixa a resolucao fisica normal acontecer (elasticity ja configurada nos shapes)
 
@@ -86,6 +87,11 @@ class SimulationEngine:
         self.deaths_total = 0
         self.metrics_history = deque(maxlen=METRICS_HISTORY_MAX)
         self._metrics_accumulator = 0.0
+
+        # BIT-30: linhagem. extinctions_total conta resets completos (populacao zerou);
+        # _lifespan_sum acumula idades dos mortos para calcular avg_lifespan = sum/deaths_total.
+        self.extinctions_total = 0
+        self._lifespan_sum = 0.0
 
         # BIT-24: controle interativo de tempo e arrasto.
         self.paused = False
@@ -198,12 +204,15 @@ class SimulationEngine:
                 b.reproduction_cooldown = REPRODUCTION_COOLDOWN
                 a.is_fertile = False  # re-conquistar a fertilidade comendo de novo
                 b.is_fertile = False
+                a.children_count += 1  # BIT-30
+                b.children_count += 1
                 child_id = self.next_genome_id()
                 child_genome = organic_crossover(a.genome, b.genome, child_id, a.config)
                 mutate_genome(child_genome, a.config)
                 cx = (a.body.position.x + b.body.position.x) / 2
                 cy = (a.body.position.y + b.body.position.y) / 2
-                sexual_children.append(Creature(self, cx, cy, genome=child_genome))
+                child_gen = max(a.generation, b.generation) + 1
+                sexual_children.append(Creature(self, cx, cy, genome=child_genome, generation=child_gen))
                 break  # 'a' ja acasalou neste frame (cooldown), passa para o proximo adulto
         for child in sexual_children:
             self.add_creature(child)
@@ -230,12 +239,14 @@ class SimulationEngine:
 
             creature.energy -= ASEXUAL_REPRODUCTION_ENERGY_COST
             creature.reproduction_cooldown = ASEXUAL_REPRODUCTION_COOLDOWN
+            creature.children_count += 1  # BIT-30
 
             child_id = self.next_genome_id()
             child_genome = clone_genome(creature.genome, child_id, creature.config)
             mutate_genome(child_genome, creature.config)
             asexual_children.append(
-                Creature(self, creature.body.position.x, creature.body.position.y, genome=child_genome)
+                Creature(self, creature.body.position.x, creature.body.position.y,
+                         genome=child_genome, generation=creature.generation + 1)
             )
 
         for child in asexual_children:
@@ -294,6 +305,7 @@ class SimulationEngine:
             if c.is_alive:
                 alive_creatures.append(c)
             else:
+                self._lifespan_sum += c.age  # BIT-30: acumula antes de die() zerar estado
                 c.die()
                 self.deaths_total += 1
         self.creatures = alive_creatures
@@ -304,8 +316,9 @@ class SimulationEngine:
         # 6. Jardim do Eden: fallback de extincao total (populacao == 0, nao coberto pelo README)
         # + regra real do README (populacao < 10, com sobreviventes: oasis denso nas posicoes deles)
         if len(self.creatures) == 0:
+            self.extinctions_total += 1  # BIT-30
             for _ in range(10):
-                self.add_creature(Creature(self))
+                self.add_creature(Creature(self, generation=0))
             self._eden_active = False
         elif len(self.creatures) < EDEN_POPULATION_THRESHOLD:
             if not self._eden_active:

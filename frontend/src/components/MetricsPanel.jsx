@@ -3,7 +3,7 @@
 // InspectorPanel/ParamsPanel: numeros correntes (populacao/comida/oasis), chips por fase de
 // vida e sparklines das series amostradas. `metrics` vem do state_update (agregados correntes);
 // `series` e o buffer local semeado por GET /metrics/history.
-import { HUD } from './hudTheme';
+import { HUD, sectionLabelStyle, sectionRuleStyle } from './hudTheme';
 import Sparkline from './Sparkline';
 
 const PANEL_STYLE = {
@@ -102,6 +102,28 @@ const MetricsPanel = ({ metrics, series }) => {
         label="Mortes"
         value={metrics.deaths_total ?? 0}
         data={pick('deaths_total')}
+        color={HUD.warm}
+      />
+
+      <div style={sectionLabelStyle}>
+        Linhagem <span style={sectionRuleStyle} />
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+        <Stat label="Max Geração" value={metrics.max_generation ?? 0} />
+        <Stat label="Extinções" value={metrics.extinctions_total ?? 0} />
+      </div>
+
+      <MetricSpark
+        label="Geração média"
+        value={(metrics.avg_generation ?? 0).toFixed(2)}
+        data={pick('avg_generation')}
+        color={HUD.accent}
+      />
+      <MetricSpark
+        label="Sobrevida média"
+        value={(metrics.avg_lifespan ?? 0).toFixed(1)}
+        data={pick('avg_lifespan')}
         color={HUD.warm}
       />
     </div>

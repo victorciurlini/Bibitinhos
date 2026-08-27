@@ -109,7 +109,7 @@ def compute_visual_scale(age, energy, max_energy):
 
 
 class Creature:
-    def __init__(self, engine, x=None, y=None, genome=None):
+    def __init__(self, engine, x=None, y=None, genome=None, generation=0):
         self.engine = engine
         
         # Pymunk Physics integration
@@ -149,6 +149,10 @@ class Creature:
         self.sought_mate_this_frame = False  # BIT-22: substitui collided_with_creature_this_frame.
         self.has_eaten = False   # BIT-22: setada ao comer (handler de colisao criatura x comida).
         self.is_fertile = False  # BIT-22: fertilidade persistente para reproducao sexuada.
+
+        self.generation = generation      # profundidade de linhagem (0 = Gen 0 / re-semeadura)
+        self.food_eaten = 0               # comidas ingeridas na vida
+        self.children_count = 0           # filhos gerados (sexuado + assexuado)
 
         # Cérebro NEAT: genoma injetado (reprodução futura) ou genoma zero (Gen 0)
         self.config = load_neat_config()
@@ -260,5 +264,8 @@ class Creature:
             "motor_forward": self.motor_forward,
             "motor_torque": self.motor_torque,
             "action_mate": self.action_mate,
-            "action_grab_drop": self.action_grab_drop
+            "action_grab_drop": self.action_grab_drop,
+            "generation": self.generation,
+            "food_eaten": self.food_eaten,
+            "children_count": self.children_count,
         }
