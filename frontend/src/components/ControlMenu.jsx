@@ -1,11 +1,10 @@
 /* eslint-disable react/prop-types */
 // Menu HUD recolhivel no canto superior esquerdo. Escondido por padrao: mostra so o botao de
-// expansao. Expandido, abre um painel de vidro teal a esquerda com as secoes Tempo, Inspetor,
+// expansao. Expandido, abre um painel de vidro teal a esquerda com as secoes Tempo,
 // Metricas e Parametros. Estetica "bioluminescente de laboratorio" (ver hudTheme.js). O botao ecoa o
-// estado do servidor via props.
+// estado do servidor via props. BIT-34: InspectorPanel movido para CreatureDetailPanel (painel direito).
 import { useState } from 'react';
 import TimeControls from './TimeControls';
-import InspectorPanel from './InspectorPanel';
 import MetricsPanel from './MetricsPanel';
 import ParamsPanel from './ParamsPanel';
 import { HUD, panelStyle, sectionLabelStyle, sectionRuleStyle } from './hudTheme';
@@ -83,12 +82,6 @@ const HEADER_TOGGLE_STYLE = {
   justifyContent: 'center',
 };
 
-const HINT_STYLE = {
-  color: HUD.textDim,
-  fontFamily: HUD.fontUi,
-  fontSize: '11px',
-};
-
 // Rotulo de secao com filete a direita.
 const SectionLabel = ({ children }) => (
   <div style={sectionLabelStyle}>
@@ -97,7 +90,7 @@ const SectionLabel = ({ children }) => (
   </div>
 );
 
-const ControlMenu = ({ paused, speed, creature, genome, params, metrics, metricsSeries, onCommand }) => {
+const ControlMenu = ({ paused, speed, params, metrics, metricsSeries, onCommand }) => {
   const [expanded, setExpanded] = useState(false);
 
   if (!expanded) {
@@ -135,11 +128,6 @@ const ControlMenu = ({ paused, speed, creature, genome, params, metrics, metrics
 
       <SectionLabel>Tempo</SectionLabel>
       <TimeControls paused={paused} speed={speed} onCommand={onCommand} />
-
-      <SectionLabel>Inspetor</SectionLabel>
-      {creature
-        ? <InspectorPanel creature={creature} genome={genome} />
-        : <div style={HINT_STYLE}>Clique num bibite para inspecionar.</div>}
 
       <SectionLabel>Metricas</SectionLabel>
       <MetricsPanel metrics={metrics} series={metricsSeries} />

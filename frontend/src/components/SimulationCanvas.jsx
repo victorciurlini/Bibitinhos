@@ -1,5 +1,6 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import ControlMenu from './ControlMenu';
+import CreatureDetailPanel from './CreatureDetailPanel';
 
 const OFFSCREEN_TINT_SIZE = 64;
 const TINT_ALPHA = 0.55;
@@ -32,6 +33,12 @@ const SimulationCanvas = () => {
   // Espelho reativo (~150 ms) do que o painel/controles precisam mostrar.
   const [inspectedCreature, setInspectedCreature] = useState(null);
   const [inspectedGenome, setInspectedGenome] = useState(null);
+
+  // BIT-34: estado persistente do painel direito — congela no ultimo estado ao morrer.
+  const [lastInspectedCreature, setLastInspectedCreature] = useState(null);
+  const [lastInspectedGenome, setLastInspectedGenome] = useState(null);
+  const [isInspectedDead, setIsInspectedDead] = useState(false);
+
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [params, setParams] = useState(null);
@@ -48,6 +55,15 @@ const SimulationCanvas = () => {
       wsRef.current.send(JSON.stringify(obj));
     }
   };
+
+  // BIT-34: fecha o painel direito e limpa toda a selecao corrente.
+  const handleClosePanel = useCallback(() => {
+    selectedIdRef.current = null;
+    inspectedGenomeRef.current = null;
+    setLastInspectedCreature(null);
+    setLastInspectedGenome(null);
+    setIsInspectedDead(false);
+  }, []);
 
   const drawTintedSprite = (ctx, img, size, color) => {
     if (!tintCanvasRef.current) {
@@ -245,8 +261,9 @@ const SimulationCanvas = () => {
               }
             });
 
-            // Anel de destaque da criatura selecionada. Se o id sumiu do state
-            // (a criatura morreu), limpa a selecao para o painel/anel sumirem.
+            // Anel de destaque da criatura selecionada. Quando a criatura morre e sai
+            // do state_update, o anel deixa de ser desenhado mas a selecao persiste
+            // (o painel direito congela no ultimo estado recebido para analise post-mortem).
             if (selectedIdRef.current != null) {
               const sel = data.creatures.find(c => c.id === selectedIdRef.current);
               if (sel) {
@@ -255,8 +272,6 @@ const SimulationCanvas = () => {
                 ctx.beginPath();
                 ctx.arc(sel.x, sel.y, (sel.radius || 10) + 6, 0, Math.PI * 2);
                 ctx.stroke();
-              } else {
-                selectedIdRef.current = null;
               }
             }
           }
@@ -392,11 +407,31 @@ const SimulationCanvas = () => {
       }
       const id = selectedIdRef.current;
       const sel = id != null && data.creatures ? data.creatures.find(c => c.id === id) : null;
-      setInspectedCreature(sel || null);
-      // BIT-27: expoe o genoma so se a resposta unicast corresponde a selecao corrente
-      // (criatura morta/deselecionada => null; respostas atrasadas de outra selecao tambem).
+
+      // BIT-34: sincroniza estado persistente do painel direito.
+      // Criatura viva: atualiza tudo. Criatura morta (id existe mas sumiu do state): congela.
+      // Sem selecao: limpa tudo.
+      if (sel) {
+        setInspectedCreature(sel);
+        setLastInspectedCreature(sel);
+        setIsInspectedDead(false);
+      } else if (id != null) {
+        setInspectedCreature(null);
+        setIsInspectedDead(true);
+        // lastInspectedCreature NAO e atualizado — preserva o ultimo estado para post-mortem.
+      } else {
+        setInspectedCreature(null);
+        setIsInspectedDead(false);
+        setLastInspectedCreature(null);
+        setLastInspectedGenome(null);
+      }
+
+      // BIT-27 + BIT-34: expoe o genoma so se a resposta unicast corresponde a selecao corrente.
       const insp = inspectedGenomeRef.current;
-      setInspectedGenome(insp && insp.creature_id === selectedIdRef.current ? insp.genome : null);
+      if (insp && insp.creature_id === id) {
+        setInspectedGenome(insp.genome);
+        setLastInspectedGenome(insp.genome);
+      }
     }, INSPECT_INTERVAL_MS);
 
     return () => {
@@ -418,7 +453,8 @@ const SimulationCanvas = () => {
       <div style={{
         position: 'absolute',
         top: 12,
-        right: 12,
+        left: '50%',
+        transform: 'translateX(-50%)',
         padding: '6px 11px',
         display: 'flex',
         alignItems: 'center',
@@ -450,12 +486,16 @@ const SimulationCanvas = () => {
       <ControlMenu
         paused={paused}
         speed={speed}
-        creature={inspectedCreature}
-        genome={inspectedGenome}
         params={params}
         metrics={metrics}
         metricsSeries={metricsSeries}
         onCommand={sendCommand}
+      />
+      <CreatureDetailPanel
+        creature={lastInspectedCreature}
+        genome={lastInspectedGenome}
+        isDead={isInspectedDead}
+        onClose={handleClosePanel}
       />
     </div>
   );
