@@ -141,6 +141,11 @@ const InspectorPanel = ({ creature, genome }) => {
         <span style={{ color }}>{creature.life_stage || '—'}</span>
       </div>
       <div style={LABEL_STYLE}>Idade: <span style={{ color: HUD.text, fontFamily: HUD.fontMono }}>{(creature.age ?? 0).toFixed(1)}s</span></div>
+      <div style={LABEL_STYLE}>Geração: <span style={{ color: HUD.text, fontFamily: HUD.fontMono }}>{creature.generation ?? 0}</span></div>
+      <div style={{ ...LABEL_STYLE, display: 'flex', gap: 12, marginTop: 2 }}>
+        <span>Comidas: <span style={{ color: HUD.text, fontFamily: HUD.fontMono }}>{creature.food_eaten ?? 0}</span></span>
+        <span>Filhos: <span style={{ color: HUD.text, fontFamily: HUD.fontMono }}>{creature.children_count ?? 0}</span></span>
+      </div>
 
       <div style={{ ...LABEL_STYLE, marginTop: 7, marginBottom: 3 }}>
         Energia: <span style={{ color: HUD.text, fontFamily: HUD.fontMono }}>{(creature.energy ?? 0).toFixed(0)} / {maxEnergy.toFixed(0)}</span>

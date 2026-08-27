@@ -24,4 +24,8 @@ def compute_metrics(engine):
         "deaths_total": engine.deaths_total,
         "food_count": len(engine.foods),
         "oases_count": len(engine.oases),
+        "max_generation": max((c.generation for c in creatures), default=0),
+        "avg_generation": (sum(c.generation for c in creatures) / n) if n else 0.0,
+        "extinctions_total": engine.extinctions_total,
+        "avg_lifespan": (engine._lifespan_sum / engine.deaths_total) if engine.deaths_total else 0.0,
     }
