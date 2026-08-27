@@ -1,11 +1,89 @@
-import React, { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
+import ControlMenu from './ControlMenu';
+import CreatureDetailPanel from './CreatureDetailPanel';
+
+const OFFSCREEN_TINT_SIZE = 64;
+const TINT_ALPHA = 0.55;
+const DRAG_THRESHOLD_PX = 5; // deslocamento de tela que separa clique de arrasto
+const HIT_SLOP_WORLD = 6; // folga do hit-test, em unidades de mundo
+const INSPECT_INTERVAL_MS = 150; // taxa de atualizacao do painel/controles (sem re-render a 30 FPS)
+const METRICS_SERIES_MAX = 600; // espelha METRICS_HISTORY_MAX do backend (~10 min a 1 amostra/s)
+
+// BIT-29: URL do WebSocket parametrizavel em build time (Docker); sem env, o dev local nao muda.
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8001/ws';
 
 const SimulationCanvas = () => {
   const canvasRef = useRef(null);
   const latestWorldState = useRef(null);
   const animationFrameId = useRef(null);
   const images = useRef({});
+  const tintCanvasRef = useRef(null);
   const [status, setStatus] = useState('Connecting...');
+
+  // Estado quente de interacao fica em refs (nao dispara re-render a 30 FPS).
+  const wsRef = useRef(null);
+  const viewTransformRef = useRef({ scale: 1, offsetX: 0, offsetY: 0 });
+  const selectedIdRef = useRef(null);
+  const dragRef = useRef(null); // null ou { creatureId, startX, startY, moved }
+
+  // BIT-27: ultima mensagem creature_inspection recebida (unicast, uma por selecao).
+  // Ref no hot-path do WS; o espelho reativo so expoe o genoma da selecao corrente.
+  const inspectedGenomeRef = useRef(null);
+
+  // Espelho reativo (~150 ms) do que o painel/controles precisam mostrar.
+  const [inspectedCreature, setInspectedCreature] = useState(null);
+  const [inspectedGenome, setInspectedGenome] = useState(null);
+
+  // BIT-34: estado persistente do painel direito — congela no ultimo estado ao morrer.
+  const [lastInspectedCreature, setLastInspectedCreature] = useState(null);
+  const [lastInspectedGenome, setLastInspectedGenome] = useState(null);
+  const [isInspectedDead, setIsInspectedDead] = useState(false);
+
+  const [paused, setPaused] = useState(false);
+  const [speed, setSpeed] = useState(1);
+  const [params, setParams] = useState(null);
+
+  // BIT-26: agregados correntes (do state_update) + serie temporal local (1 amostra/s simulado),
+  // semeada via GET /metrics/history para sobreviver a reloads/reconexoes do frontend.
+  const [metrics, setMetrics] = useState(null);
+  const metricsSeriesRef = useRef([]);
+  const [metricsSeries, setMetricsSeries] = useState([]);
+
+  // Envia um comando pelo WS se ele estiver aberto.
+  const sendCommand = (obj) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(obj));
+    }
+  };
+
+  // BIT-34: fecha o painel direito e limpa toda a selecao corrente.
+  const handleClosePanel = useCallback(() => {
+    selectedIdRef.current = null;
+    inspectedGenomeRef.current = null;
+    setLastInspectedCreature(null);
+    setLastInspectedGenome(null);
+    setIsInspectedDead(false);
+  }, []);
+
+  const drawTintedSprite = (ctx, img, size, color) => {
+    if (!tintCanvasRef.current) {
+      const c = document.createElement('canvas');
+      c.width = OFFSCREEN_TINT_SIZE;
+      c.height = OFFSCREEN_TINT_SIZE;
+      tintCanvasRef.current = c;
+    }
+    const off = tintCanvasRef.current;
+    const octx = off.getContext('2d');
+    octx.clearRect(0, 0, OFFSCREEN_TINT_SIZE, OFFSCREEN_TINT_SIZE);
+    octx.drawImage(img, 0, 0, OFFSCREEN_TINT_SIZE, OFFSCREEN_TINT_SIZE);
+    octx.globalCompositeOperation = 'source-atop';
+    octx.globalAlpha = TINT_ALPHA;
+    octx.fillStyle = color;
+    octx.fillRect(0, 0, OFFSCREEN_TINT_SIZE, OFFSCREEN_TINT_SIZE);
+    octx.globalAlpha = 1;
+    octx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(off, -size / 2, -size / 2, size, size);
+  };
 
   useEffect(() => {
     const loadImg = (src) => {
@@ -16,7 +94,6 @@ const SimulationCanvas = () => {
     images.current.bibity = loadImg('/sprites/bibity.png');
     images.current.egg = loadImg('/sprites/egg.png');
     images.current.food = loadImg('/sprites/food.png');
-    images.current.fundo = loadImg('/sprites/fundo.png');
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -28,15 +105,28 @@ const SimulationCanvas = () => {
       canvas.width = canvas.parentElement.clientWidth || 800;
       canvas.height = canvas.parentElement.clientHeight || 600;
       // Draw initial dark background
-      ctx.fillStyle = '#1e1e1e';
+      ctx.fillStyle = '#0a1e2e';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     };
     
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
+    // BIT-26: semeia a serie de metricas com o historico do backend (bootstrap do painel).
+    // Falha de rede e silenciosa de proposito: a serie passa a crescer so com o WS mesmo.
+    fetch('http://localhost:8001/metrics/history')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && Array.isArray(data.history)) {
+          metricsSeriesRef.current = data.history.slice(-METRICS_SERIES_MAX);
+          setMetricsSeries([...metricsSeriesRef.current]);
+        }
+      })
+      .catch(() => {});
+
     // Setup WebSocket
-    const ws = new WebSocket('ws://localhost:8001/ws');
+    const ws = new WebSocket(WS_URL);
+    wsRef.current = ws;
 
     ws.onopen = () => {
       setStatus('Connected');
@@ -45,7 +135,13 @@ const SimulationCanvas = () => {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        latestWorldState.current = data;
+        // BIT-27: roteamento por tipo — creature_inspection (unicast) nao pode
+        // poluir latestWorldState (o renderLoop assume o formato do state_update).
+        if (data.type === 'creature_inspection') {
+          inspectedGenomeRef.current = data;
+        } else if (data.type === 'state_update') {
+          latestWorldState.current = data;
+        }
       } catch (e) {
         console.error('Error parsing WebSocket message:', e);
       }
@@ -65,7 +161,7 @@ const SimulationCanvas = () => {
       
       if (data) {
         // Clear canvas
-        ctx.fillStyle = '#1e1e1e';
+        ctx.fillStyle = '#0a1e2e';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         const worldWidth = data.width || 2000;
@@ -74,28 +170,74 @@ const SimulationCanvas = () => {
         
         if (Number.isFinite(scale) && scale > 0) {
           ctx.save();
-          
+
           const offsetX = (canvas.width - worldWidth * scale) / 2;
           const offsetY = (canvas.height - worldHeight * scale) / 2;
-          
+
+          // Guarda a transform corrente para o hit-test / toWorld dos handlers de mouse.
+          viewTransformRef.current = { scale, offsetX, offsetY };
+
           ctx.translate(offsetX, offsetY);
           ctx.scale(scale, scale);
 
-          // Renderizar fundo original
-          if (images.current.fundo && images.current.fundo.complete) {
-            ctx.drawImage(images.current.fundo, 0, 0, worldWidth, worldHeight);
+          // Fundo aquatico do mundo: gradiente vertical (mais claro no topo, mais fundo embaixo)
+          const worldGradient = ctx.createLinearGradient(0, 0, 0, worldHeight);
+          worldGradient.addColorStop(0, '#1a5079');
+          worldGradient.addColorStop(1, '#0d2c44');
+          ctx.fillStyle = worldGradient;
+          ctx.fillRect(0, 0, worldWidth, worldHeight);
+
+          // Oasis: zona de fertilidade, atras de tudo que e vivo/comestivel.
+          // Opacidade cai junto com o TTL (fade-out natural antes de expirar).
+          if (data.oases) {
+            data.oases.forEach(oasis => {
+              const frac = oasis.ttl_fraction ?? 1;
+              const grad = ctx.createRadialGradient(oasis.x, oasis.y, 0, oasis.x, oasis.y, oasis.radius);
+              grad.addColorStop(0, `rgba(80, 200, 120, ${0.10 + 0.15 * frac})`);
+              grad.addColorStop(1, 'rgba(80, 200, 120, 0)');
+              ctx.fillStyle = grad;
+              ctx.beginPath();
+              ctx.arc(oasis.x, oasis.y, oasis.radius, 0, Math.PI * 2);
+              ctx.fill();
+            });
           }
 
           // Render state
           if (data.creatures) {
+            const visionRadius = data.vision_radius || 80;
+            const visionFovRadians = ((data.vision_fov_degrees || 120) * Math.PI) / 180;
             data.creatures.forEach(creature => {
+              // Cone de visao frontal (9 setores translucidos), desenhado atras do sprite.
+              // Setor do meio fica centrado exatamente na direcao "para frente" (mesma
+              // geometria de compute_vision em sensors.py: nada atras da criatura acende).
+              if (creature.vision && creature.vision.length > 0) {
+                const sectorCount = creature.vision.length;
+                const sectorWidth = visionFovRadians / sectorCount;
+                const rotation = creature.rotation || 0;
+                const fovStart = rotation - visionFovRadians / 2;
+
+                ctx.save();
+                ctx.translate(creature.x, creature.y);
+                ctx.fillStyle = 'rgba(144, 238, 144, 0.5)'; // verde claro, 50% opacidade
+                for (let i = 0; i < sectorCount; i++) {
+                  const startAngle = fovStart + i * sectorWidth;
+                  const endAngle = startAngle + sectorWidth;
+                  ctx.beginPath();
+                  ctx.moveTo(0, 0);
+                  ctx.arc(0, 0, visionRadius, startAngle, endAngle);
+                  ctx.closePath();
+                  ctx.fill();
+                }
+                ctx.restore();
+              }
+
               if (images.current.bibity && images.current.bibity.complete && images.current.egg && images.current.egg.complete) {
                 const img = creature.life_stage === 'EGG' ? images.current.egg : images.current.bibity;
                 ctx.save();
                 ctx.translate(creature.x, creature.y);
                 ctx.rotate(creature.rotation || 0);
                 const s = (creature.radius || 10) * 2;
-                ctx.drawImage(img, -s/2, -s/2, s, s);
+                drawTintedSprite(ctx, img, s, creature.color || '#4CAF50');
                 ctx.restore();
               } else {
                 ctx.fillStyle = creature.color || '#4CAF50';
@@ -118,6 +260,20 @@ const SimulationCanvas = () => {
                 }
               }
             });
+
+            // Anel de destaque da criatura selecionada. Quando a criatura morre e sai
+            // do state_update, o anel deixa de ser desenhado mas a selecao persiste
+            // (o painel direito congela no ultimo estado recebido para analise post-mortem).
+            if (selectedIdRef.current != null) {
+              const sel = data.creatures.find(c => c.id === selectedIdRef.current);
+              if (sel) {
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2 / scale;
+                ctx.beginPath();
+                ctx.arc(sel.x, sel.y, (sel.radius || 10) + 6, 0, Math.PI * 2);
+                ctx.stroke();
+              }
+            }
           }
           if (data.foods) {
             data.foods.forEach(food => {
@@ -142,8 +298,149 @@ const SimulationCanvas = () => {
 
     animationFrameId.current = requestAnimationFrame(renderLoop);
 
+    // Converte coordenadas de tela (evento) para coordenadas de mundo, usando a
+    // transform corrente calculada no renderLoop.
+    const toWorld = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const { scale, offsetX, offsetY } = viewTransformRef.current;
+      return {
+        x: (e.clientX - rect.left - offsetX) / scale,
+        y: (e.clientY - rect.top - offsetY) / scale,
+      };
+    };
+
+    // Retorna a criatura mais proxima do ponto de mundo dentro do raio + folga, ou null.
+    const hitTest = (worldX, worldY) => {
+      const data = latestWorldState.current;
+      if (!data || !data.creatures) return null;
+      let best = null;
+      let bestDist = Infinity;
+      for (const c of data.creatures) {
+        const dx = c.x - worldX;
+        const dy = c.y - worldY;
+        const dist = Math.hypot(dx, dy);
+        if (dist <= (c.radius || 10) + HIT_SLOP_WORLD && dist < bestDist) {
+          best = c;
+          bestDist = dist;
+        }
+      }
+      return best;
+    };
+
+    const handleMouseDown = (e) => {
+      const w = toWorld(e);
+      const hit = hitTest(w.x, w.y);
+      dragRef.current = {
+        creatureId: hit ? hit.id : null,
+        startX: e.clientX,
+        startY: e.clientY,
+        moved: false,
+      };
+    };
+
+    const handleMouseMove = (e) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      const screenDist = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY);
+      if (drag.creatureId == null) return; // clique no vazio nunca vira arrasto
+      const w = toWorld(e);
+      if (!drag.moved && screenDist >= DRAG_THRESHOLD_PX) {
+        drag.moved = true;
+        canvas.style.cursor = 'grabbing';
+        sendCommand({ action: 'drag', phase: 'start', creature_id: drag.creatureId });
+      }
+      if (drag.moved) {
+        sendCommand({ action: 'drag', phase: 'move', creature_id: drag.creatureId, x: w.x, y: w.y });
+      }
+    };
+
+    const finishDrag = (e) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      if (drag.moved) {
+        sendCommand({ action: 'drag', phase: 'end', creature_id: drag.creatureId });
+      } else {
+        // Sem arrasto: foi um clique. Seleciona o alvo (ou deseleciona no vazio).
+        const screenDist = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY);
+        if (screenDist < DRAG_THRESHOLD_PX) {
+          const w = toWorld(e);
+          const hit = hitTest(w.x, w.y);
+          selectedIdRef.current = hit ? hit.id : null;
+          // BIT-27: nova selecao pede o genoma UMA vez (ele e imutavel em vida);
+          // deselecao (ou troca) descarta o genoma anterior.
+          inspectedGenomeRef.current = null;
+          if (hit) {
+            sendCommand({ action: 'inspect_creature', creature_id: hit.id });
+          }
+        }
+      }
+      dragRef.current = null;
+      canvas.style.cursor = 'default';
+    };
+
+    const handleMouseUp = (e) => finishDrag(e);
+    const handleMouseLeave = (e) => finishDrag(e);
+
+    canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseup', handleMouseUp);
+    canvas.addEventListener('mouseleave', handleMouseLeave);
+
+    // Espelha a ~150 ms o que os overlays precisam (evita re-render a 30 FPS).
+    const inspectInterval = setInterval(() => {
+      const data = latestWorldState.current;
+      if (!data) return;
+      if (typeof data.paused === 'boolean') setPaused(data.paused);
+      if (typeof data.speed === 'number') setSpeed(data.speed);
+      if (data.params && typeof data.params === 'object') setParams(data.params);
+      if (data.metrics && typeof data.metrics === 'object') {
+        const m = data.metrics;
+        setMetrics(m);
+        // Apenda 1 amostra por segundo simulado (mesmo criterio de amostragem do backend).
+        const series = metricsSeriesRef.current;
+        const last = series.length > 0 ? series[series.length - 1] : null;
+        if (typeof m.time === 'number' && (!last || Math.floor(m.time) > Math.floor(last.time))) {
+          series.push(m);
+          if (series.length > METRICS_SERIES_MAX) series.shift();
+          setMetricsSeries([...series]);
+        }
+      }
+      const id = selectedIdRef.current;
+      const sel = id != null && data.creatures ? data.creatures.find(c => c.id === id) : null;
+
+      // BIT-34: sincroniza estado persistente do painel direito.
+      // Criatura viva: atualiza tudo. Criatura morta (id existe mas sumiu do state): congela.
+      // Sem selecao: limpa tudo.
+      if (sel) {
+        setInspectedCreature(sel);
+        setLastInspectedCreature(sel);
+        setIsInspectedDead(false);
+      } else if (id != null) {
+        setInspectedCreature(null);
+        setIsInspectedDead(true);
+        // lastInspectedCreature NAO e atualizado — preserva o ultimo estado para post-mortem.
+      } else {
+        setInspectedCreature(null);
+        setIsInspectedDead(false);
+        setLastInspectedCreature(null);
+        setLastInspectedGenome(null);
+      }
+
+      // BIT-27 + BIT-34: expoe o genoma so se a resposta unicast corresponde a selecao corrente.
+      const insp = inspectedGenomeRef.current;
+      if (insp && insp.creature_id === id) {
+        setInspectedGenome(insp.genome);
+        setLastInspectedGenome(insp.genome);
+      }
+    }, INSPECT_INTERVAL_MS);
+
     return () => {
       window.removeEventListener('resize', resizeCanvas);
+      canvas.removeEventListener('mousedown', handleMouseDown);
+      canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.removeEventListener('mouseup', handleMouseUp);
+      canvas.removeEventListener('mouseleave', handleMouseLeave);
+      clearInterval(inspectInterval);
       ws.close();
       if (animationFrameId.current) {
         cancelAnimationFrame(animationFrameId.current);
@@ -155,20 +452,50 @@ const SimulationCanvas = () => {
     <div style={{ position: 'relative', width: '100%', height: '100%', flex: 1 }}>
       <div style={{
         position: 'absolute',
-        top: 10,
-        left: 10,
-        padding: '5px 10px',
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        borderRadius: '5px',
-        color: '#fff',
+        top: 12,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        padding: '6px 11px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 7,
+        backgroundColor: 'rgba(9, 26, 30, 0.74)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
+        border: '1px solid rgba(70, 229, 176, 0.16)',
+        borderRadius: 10,
+        boxShadow: '0 6px 24px rgba(0, 0, 0, 0.45)',
+        color: '#e6f4ef',
         zIndex: 10,
-        fontFamily: 'monospace'
+        fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
+        fontSize: '12px'
       }}>
-        Status: {status}
+        <span style={{
+          width: 7,
+          height: 7,
+          borderRadius: '50%',
+          backgroundColor: '#46e5b0',
+          boxShadow: '0 0 6px rgba(70, 229, 176, 0.9)'
+        }} />
+        {status}
       </div>
-      <canvas 
-        ref={canvasRef} 
-        style={{ display: 'block', width: '100%', height: '100%', backgroundColor: '#1e1e1e' }}
+      <canvas
+        ref={canvasRef}
+        style={{ display: 'block', width: '100%', height: '100%', backgroundColor: '#0a1e2e' }}
+      />
+      <ControlMenu
+        paused={paused}
+        speed={speed}
+        params={params}
+        metrics={metrics}
+        metricsSeries={metricsSeries}
+        onCommand={sendCommand}
+      />
+      <CreatureDetailPanel
+        creature={lastInspectedCreature}
+        genome={lastInspectedGenome}
+        isDead={isInspectedDead}
+        onClose={handleClosePanel}
       />
     </div>
   );

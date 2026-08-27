@@ -1,4 +1,3 @@
-import React from 'react';
 import SimulationCanvas from './components/SimulationCanvas';
 
 function App() {

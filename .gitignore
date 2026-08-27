@@ -23,3 +23,7 @@ frontend/*.local
 *.sln
 *.csproj
 *.unity
+
+# CodeGraph (indice local, regeneravel via `codegraph init`)
+.codegraph/
+codegraph-visual.html

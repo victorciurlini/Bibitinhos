@@ -1,0 +1,16 @@
+# O browser acessa o backend via localhost:8001 publicado no host —
+# por isso a URL do WS aponta para localhost, nao para o hostname interno do compose.
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8001:8001"
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_WS_URL: ws://localhost:8001/ws
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend

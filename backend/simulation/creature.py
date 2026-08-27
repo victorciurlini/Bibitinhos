@@ -12,6 +12,36 @@ MOTOR_TORQUE_SCALE = 20.0
 KINETIC_LINEAR_NORM = 200.0
 KINETIC_ANGULAR_NORM = 10.0
 LATERAL_GRIP_RATE = 20.0  # taxa de amortecimento lateral (1/segundo), tunavel
+# Nota (BIT-17): mantido inalterado ao introduzir arrasto de agua - corrige derrapagem
+# lateral por rotacao (BIT-07), ortogonal ao arrasto longitudinal; reduzi-lo abaixo de
+# ~11.1 quebra test_locomotion.py::test_lateral_velocity_is_damped_towards_zero_over_frames.
+CREATURE_MASS = 1.0
+STARTING_ENERGY = 75.0  # 75% de max_energy: crias precisam comer antes de poder se reproduzir
+
+# BIT-22: reproducao sexuada por FERTILIDADE PERSISTENTE, nao por energia instantanea na colisao.
+# A criatura vira fertil ao atingir este limiar (tendo comido) e MANTEM a fertilidade mesmo com a
+# energia caindo no roaming, ate acasalar. O limiar e ALCANCAVEL de proposito (< max_energy); "comer
+# antes de acasalar" (BIT-16) e garantido pela flag has_eaten, nao pelo nivel de energia.
+FERTILITY_ENERGY_THRESHOLD = 60.0
+
+# --- Economia de energia (BIT-20): explorar tem que ser mais barato que ficar parado ---
+# O modelo antigo (thrust*speed*0.1 + |torque|*size*0.05) cobrava 5.0/s para andar e so 0.5/s
+# para girar no lugar. Com o metabolismo em cima, ficar parado girando sobrevivia 77s e explorar
+# sobrevivia 20s — a selecao natural estava otimizando corretamente para a paralisia, porque era
+# isso que o ambiente premiava. Aqui o sinal se inverte: girar parado passa a ser a PIOR estrategia.
+MOVEMENT_REFERENCE_SPEED = 35.0  # px/s: velocidade real a partir da qual a criatura conta como
+                                 # "explorando de verdade". 75% da terminal de 46.8 px/s medida sob
+                                 # damping=0.35 (BIT-17); folgada o bastante para nao punir os ~2.6s
+                                 # de aceleracao a partir do repouso.
+IDLE_PENALTY_RATE = 1.2          # energia/s de imposto de ociosidade, cheio quando parada.
+                                 # Calibrado (degrau 1 da escada de ajuste da spec): a 2.0 a multa
+                                 # somava-se a escassez de comida ja existente e a populacao colapsava
+                                 # (13 extincoes / 5 min). A 1.2 o ecossistema se sustenta (6 extincoes,
+                                 # contra 15 do codigo antigo) e girar parado continua sendo a PIOR
+                                 # estrategia — que e o ponto.
+MOTOR_FORWARD_COST = 0.6         # energia/s a full thrust (era efetivamente 5.0/s)
+SPIN_COST = 1.0                  # energia/s a full torque, mas so quando parada: curvar enquanto se
+                                 # move e de graca (a criatura precisa virar p/ perseguir comida)
 
 class LifeStage(Enum):
     EGG = 0
@@ -29,12 +59,61 @@ METABOLISM_RATE_BY_STAGE = {
     LifeStage.ELDER: 2.0,
 }
 
+# Gradiente visual de ciclo de vida: azul (recem-nascido) -> verde (maduro) -> cinza/quase-preto
+# (velhice, guiado pela energia restante, ja que nao ha teto de morte por idade).
+LIFE_COLOR_EGG = (59, 130, 246)          # #3b82f6 azul — recem-nascido
+LIFE_COLOR_MATURE = (34, 197, 94)        # #22c55e verde — maduro/pronto p/ reproduzir
+LIFE_COLOR_ELDER_START = (107, 114, 128) # #6b7280 cinza — inicio da velhice, energia cheia
+LIFE_COLOR_DEATH = (17, 24, 39)          # #111827 quase-preto — energia perto de zero
+
+VISUAL_SCALE_EGG = 0.7
+VISUAL_SCALE_ADULT = 1.0
+VISUAL_SCALE_ELDER_MIN = 0.85
+
+
+def _lerp_rgb(c1, c2, t):
+    t = max(0.0, min(1.0, t))
+    return tuple(round(a + (b - a) * t) for a, b in zip(c1, c2))
+
+
+def _rgb_to_hex(rgb):
+    return '#{:02x}{:02x}{:02x}'.format(*rgb)
+
+
+def compute_life_color(age, energy, max_energy):
+    """Azul (0-2) -> verde (2-10) -> verde->cinza continuo (10-30) -> cinza/preto por energia (30+)."""
+    if age <= 10:
+        t = max(0.0, (age - 2) / 8.0) if age > 2 else 0.0
+        rgb = _lerp_rgb(LIFE_COLOR_EGG, LIFE_COLOR_MATURE, t)
+    elif age <= 30:
+        t = (age - 10) / 20.0
+        rgb = _lerp_rgb(LIFE_COLOR_MATURE, LIFE_COLOR_ELDER_START, t)
+    else:
+        energy_fraction = max(0.0, min(1.0, energy / max_energy))
+        rgb = _lerp_rgb(LIFE_COLOR_DEATH, LIFE_COLOR_ELDER_START, energy_fraction)
+    return _rgb_to_hex(rgb)
+
+
+def compute_visual_scale(age, energy, max_energy):
+    """0.7 (ovo) -> 1.0 (adulto) -> encolhe ate 0.85 conforme energia cai no estagio ELDER."""
+    if age <= 2:
+        return VISUAL_SCALE_EGG
+    elif age <= 10:
+        t = (age - 2) / 8.0
+        return VISUAL_SCALE_EGG + (VISUAL_SCALE_ADULT - VISUAL_SCALE_EGG) * t
+    elif age <= 30:
+        return VISUAL_SCALE_ADULT
+    else:
+        energy_fraction = max(0.0, min(1.0, energy / max_energy))
+        return VISUAL_SCALE_ADULT - (VISUAL_SCALE_ADULT - VISUAL_SCALE_ELDER_MIN) * (1.0 - energy_fraction)
+
+
 class Creature:
-    def __init__(self, engine, x=None, y=None, genome=None):
+    def __init__(self, engine, x=None, y=None, genome=None, generation=0):
         self.engine = engine
         
         # Pymunk Physics integration
-        mass = 1.0
+        mass = CREATURE_MASS
         moment = pymunk.moment_for_circle(mass, 0, 10.0)
         self.body = pymunk.Body(mass, moment)
         
@@ -58,7 +137,7 @@ class Creature:
         # Atributos baseados em "DNA" (mockados por enquanto)
         self.speed = 50.0
         self.size = 10.0
-        self.energy = 100.0
+        self.energy = STARTING_ENERGY
         self.max_energy = 100.0
         self.diet = 'herbivore' # ou 'carnivore'
         
@@ -66,11 +145,19 @@ class Creature:
         self.life_stage = LifeStage.EGG
         self.age = 0.0
         self.vision = [0.0] * 9
-        self.mate_cooldown = 0.0
+        self.reproduction_cooldown = 0.0
+        self.sought_mate_this_frame = False  # BIT-22: substitui collided_with_creature_this_frame.
+        self.has_eaten = False   # BIT-22: setada ao comer (handler de colisao criatura x comida).
+        self.is_fertile = False  # BIT-22: fertilidade persistente para reproducao sexuada.
+
+        self.generation = generation      # profundidade de linhagem (0 = Gen 0 / re-semeadura)
+        self.food_eaten = 0               # comidas ingeridas na vida
+        self.children_count = 0           # filhos gerados (sexuado + assexuado)
 
         # Cérebro NEAT: genoma injetado (reprodução futura) ou genoma zero (Gen 0)
         self.config = load_neat_config()
         self.genome = genome if genome is not None else create_zero_genome(engine.next_genome_id(), self.config)
+        self.id = self.genome.key  # unico e monotonico via engine.next_genome_id()
         self.net = neat.nn.FeedForwardNetwork.create(self.genome, self.config)
 
         self.motor_forward = 0.0
@@ -101,7 +188,7 @@ class Creature:
             return
 
         self.age += dt
-        self.mate_cooldown = max(0.0, self.mate_cooldown - dt)
+        self.reproduction_cooldown = max(0.0, self.reproduction_cooldown - dt)
 
         # Atualizar estágios de vida baseados na idade (mockado)
         if self.age > 30:
@@ -112,14 +199,28 @@ class Creature:
             self.life_stage = LifeStage.JUVENILE
 
         # Movimento vem da rede neural (cacheado em think(), 10 FPS), reaplicado a cada frame de fisica
-        # EGG nao move nem paga custo de motor: o output do cerebro nunca e aplicado fisicamente nesse estagio
+        # EGG nao move nem paga custo de motor nem de ociosidade: o output do cerebro nunca e aplicado
+        # fisicamente nesse estagio, entao multa-lo por estar parado seria puni-lo por existir.
         motor_cost = 0.0
+        idle_cost = 0.0
         if self.life_stage != LifeStage.EGG:
+            # Fator de movimento medido pela VELOCIDADE REAL do corpo, nao pelo output do motor: e isso
+            # que torna a multa imburlavel (travar contra a parede => velocidade ~0 => paga o imposto cheio).
+            # Medido ANTES do impulso deste frame, de proposito: o que interessa e o deslocamento que a
+            # criatura de fato conseguiu no passo de fisica anterior, nao o empurrao que ela acabou de dar
+            # (o Pymunk aplica o impulso na velocidade na hora, o que mascararia quem esta travado).
+            movement_factor = min(1.0, self.body.velocity.length / MOVEMENT_REFERENCE_SPEED)
+            idle_cost = IDLE_PENALTY_RATE * (1.0 - movement_factor)
+
             forward_thrust = max(0.0, self.motor_forward)  # sem propulsao deliberada pra tras
             forward_impulse = (forward_thrust * self.speed * dt, 0)
             self.body.apply_impulse_at_local_point(forward_impulse, (0, 0))
             self.body.torque = self.motor_torque * MOTOR_TORQUE_SCALE
-            motor_cost = forward_thrust * self.speed * 0.1 + abs(self.motor_torque) * self.size * 0.05
+
+            motor_cost = (
+                MOTOR_FORWARD_COST * forward_thrust
+                + SPIN_COST * abs(self.motor_torque) * (1.0 - movement_factor)
+            )
 
             # Grip lateral: elimina deslizamento de lado por inercia, mantendo a fisica real
             # (colisoes ainda empurram a criatura; ela so nao desliza de lado por conta propria)
@@ -129,9 +230,15 @@ class Creature:
             self.body.velocity = damped_local_velocity.rotated(self.body.angle)
 
         metabolism_cost = METABOLISM_RATE_BY_STAGE[self.life_stage]
-        self.energy -= dt * (motor_cost + metabolism_cost)
+        self.energy -= dt * (motor_cost + idle_cost + metabolism_cost)
         if self.energy <= 0:
             self.is_alive = False
+
+        # Fertilidade persistente (BIT-22): vira fertil ao ser ADULT, ja ter comido e alcancar o limiar.
+        # Uma vez fertil, permanece ate acasalar (o roaming faz a energia cair, mas nao tira a aptidao).
+        if (self.life_stage == LifeStage.ADULT and self.has_eaten
+                and self.energy >= FERTILITY_ENERGY_THRESHOLD):
+            self.is_fertile = True
             
     def die(self):
         self.is_alive = False
@@ -141,13 +248,24 @@ class Creature:
             
     def to_dict(self):
         return {
+            "id": self.id,
             "x": self.body.position.x,
             "y": self.body.position.y,
             "rotation": self.body.angle,
-            "radius": self.size,
-            "color": "#00ff00" if self.diet == "herbivore" else "#ff0000",
+            "radius": self.size * compute_visual_scale(self.age, self.energy, self.max_energy),
+            "color": compute_life_color(self.age, self.energy, self.max_energy),
             "energy": self.energy,
+            "max_energy": self.max_energy,
+            "age": self.age,
             "diet": self.diet,
             "life_stage": self.life_stage.name,
-            "vision": self.vision
+            "reproduction_cooldown": self.reproduction_cooldown,
+            "vision": [] if self.life_stage == LifeStage.EGG else self.vision,
+            "motor_forward": self.motor_forward,
+            "motor_torque": self.motor_torque,
+            "action_mate": self.action_mate,
+            "action_grab_drop": self.action_grab_drop,
+            "generation": self.generation,
+            "food_eaten": self.food_eaten,
+            "children_count": self.children_count,
         }
