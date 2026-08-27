@@ -120,7 +120,7 @@ def test_extinction_with_hall_preserves_generation():
     assert len(engine.creatures) == 0
     engine.step(DT)
 
-    assert len(engine.creatures) == 10
+    assert len(engine.creatures) == 15  # BIT-35: respawn é 15 (era 10)
     for creature in engine.creatures:
         assert creature.generation == 5
         assert creature.is_alive
@@ -161,7 +161,7 @@ def test_extinction_without_hall_fallback_gen_zero():
 
     engine.step(DT)
 
-    assert len(engine.creatures) == 10
+    assert len(engine.creatures) == 15  # BIT-35: respawn é 15 (era 10)
     for creature in engine.creatures:
         assert creature.generation == 0
 
