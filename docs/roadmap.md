@@ -39,21 +39,58 @@ Resumo por fase. O racional e as evidências de cada BIT estão no
   UI (seção no menu) e restyle visual "bioluminescente" de todo o HUD.
 - **BIT-25 — Roadmap na documentação:** este documento como fonte prospectiva única;
   README e histórico viram ponteiros.
+- **Milestone 4 (BIT-26 → BIT-29, jul/2026):** painéis de métricas populacionais
+  (agregados no `state_update` + histórico no backend + sparklines no HUD), inspetor de
+  rede neural (genoma serializado via `inspect_creature`/`creature_inspection` + grafo SVG
+  no InspectorPanel), modo headless (`HeadlessRunner` + `backend/cli.py` com seed
+  reprodutível) e Docker/CI (Dockerfiles + compose + GitHub Actions verde no primeiro run).
 
 ## 🔧 Em refinamento (specs prontas em `.sdd/tasks/refiner/`)
 
-Milestone 4, na ordem de implementação prevista:
+**Trilha evolutiva — fazer os bibites evoluírem por mais gerações.** Diagnóstico (jul/2026): os
+seeds da Gen 0 já resolvem andar/comer/acasalar, então a evolução só *perde* comportamento; a
+extinção re-semeia genomas zero e reseta o pool; mutação alta e ausência de gradiente de fitness
+impedem o acúmulo. As duas specs abaixo atacam a base (medir + parar de resetar):
 
-- **BIT-26 — Painéis de métricas populacionais:** agregados no `state_update` + histórico
-  no backend + painel com sparklines SVG no HUD.
-- **BIT-27 — Inspetor de rede neural:** serialização do genoma NEAT + mensagem
-  `inspect_creature`/`creature_inspection` + grafo SVG no InspectorPanel.
-- **BIT-28 — Modo headless:** `HeadlessRunner` síncrono + `backend/cli.py` com snapshots
-  de métricas (depende do BIT-26).
-- **BIT-29 — Docker e CI:** Dockerfiles + docker-compose + GitHub Actions (pytest e
-  build/lint do frontend).
+- **BIT-30 — Instrumentação de linhagem & hereditariedade:** geração/`food_eaten`/`children_count`
+  por bibite + agregados `max_generation`, `avg_generation`, `extinctions_total`, `avg_lifespan`.
+  Pré-requisito de medição. Depende do BIT-26.
+- **BIT-31 — Hall of Fame contra reset evolutivo:** cache dos melhores genomas, preservado através
+  de extinções; a re-semeadura clona+muta do hall preservando a geração. Maior alavanca. Depende do
+  BIT-30.
+- **BIT-32 — Carregar comida com efeito físico:** inventário de 1 slot para `Action_Grab_Drop`/
+  `Load_Sensor` (hoje inertes) — pegar comida excedente e consumi-la na escassez. Primeiro **headroom
+  acima dos seeds** (rumo B). Independente de código; melhor avaliado após BIT-30/31.
+- **BIT-33 — Reprodução na velhice (ELDER fértil):** corrige a esterilidade não-intencional do estágio
+  ELDER (hoje só ADULT reproduz), alinhando longevidade↔descendência com o incentivo do BIT-31.
+
+**Rumo decidido (jul/2026): B** — manter os seeds da Gen 0 e criar tarefas com teto acima do que eles
+resolvem (BIT-32 é a primeira). A alternativa A (enfraquecer os seeds para a inteligência emergir do
+zero) fica arquivada como possível pivô futuro.
 
 ## 🔜 Próximos candidatos (sem spec)
+
+**Trilha evolutiva (continuação — voltar depois do BIT-30/31, já com métricas em mãos):**
+
+- **Recozimento da mutação orgânica:** `weight_mutate_rate=0.8` / `conn_add_prob=0.5` /
+  `node_add_prob=0.2` quase randomizam cada filho numa população pequena. Reduzir para que bons
+  genomas sejam *herdados* com pequenas perturbações — substrato da evolução cumulativa.
+- **Gradiente de fitness reprodutivo:** hoje a reprodução é filtro binário (cruzou o limiar → ~1
+  filho/cooldown). Fazer quem tem mais energia excedente reproduzir *mais* (cooldown menor / nº de
+  filhos escalando com a sobra) — vira uma rampa que dá para escalar.
+- **Alargar a janela de sobrevivência até a 1ª reprodução:** só o bastante para a taxa ficar acima
+  da reposição (densidade/raio de visão, ou metabolismo juvenil menor) — linhagens encadeando em vez
+  de morrerem na geração 1.
+- **Senescência reprodutiva do ELDER:** se, com o ELDER fértil (BIT-33), linhagens velhas passarem a
+  dominar, introduzir fertilidade reduzida / custo maior no estágio ELDER (polimento do BIT-33).
+- **Tarefas com mais teto acima dos seeds (rumo B):** provisionar comida a ovo/parceiro, múltiplos
+  slots de carga, cache espacial — extensões do BIT-32.
+- **Persistir o Hall of Fame em disco** (sobreviver a restart do backend) e **disparar o Éden mais
+  cedo/generoso** (reduzir extinções na raiz) — extensões do BIT-31.
+- **Pivô A (arquivado):** enfraquecer os seeds da Gen 0 para a inteligência emergir do zero — só se o
+  rumo B se mostrar insuficiente.
+
+**Outros:**
 
 - **Cap populacional configurável:** limite de população ajustável (hoje implícito),
   exposto como parâmetro.
@@ -62,7 +99,7 @@ Milestone 4, na ordem de implementação prevista:
 
 ## 🗺️ Longo prazo
 
-**Milestone 4:** movido para a seção 🔧 (specs BIT-26 a BIT-29 em refinamento).
+**Milestone 4:** entregue (BIT-26 → BIT-29 na seção ✅).
 
 **Débitos técnicos conhecidos:**
 

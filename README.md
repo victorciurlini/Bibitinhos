@@ -79,12 +79,15 @@ Detalhes completos em [`docs/`](docs/):
 - **✅ Entregue em `develop`**: BIT-00 → BIT-25 — Core (física + rtNEAT), ecossistema &
   feedback visual, a virada comportamental (exploração, food-taxis, reprodução sexuada
   emergente), controles interativos e parâmetros editáveis em tempo real.
-- **🔧 Em refinamento**: nenhuma spec pendente no momento.
-- **🔜 Próximos**: cap populacional configurável; separar o tick de física (60 FPS) do
-  brain tick (10 FPS) em loops distintos.
-- **🗺️ Longo prazo**: Milestone 4 (painéis de métricas, inspetor de rede neural, modo
-  headless, Docker/CI) e débitos técnicos (hormônio/relógio biológico placeholders,
-  grab/carry sem efeito).
+- **🔧 Em refinamento**: Milestone 4 (BIT-26 métricas → BIT-27 inspetor neural → BIT-28
+  headless → BIT-29 Docker/CI); trilha evolutiva (BIT-30 instrumentação de linhagem →
+  BIT-31 hall of fame contra reset → BIT-32 carregar comida → BIT-33 ELDER fértil). Rumo
+  decidido: **B** — manter os seeds e criar tarefas com teto acima deles.
+- **🔜 Próximos**: continuação da trilha evolutiva (recozer mutação, gradiente de fitness,
+  janela de sobrevivência, senescência do ELDER, mais tarefas com teto); cap populacional
+  configurável; separar o tick de física (60 FPS) do brain tick (10 FPS).
+- **🗺️ Longo prazo**: débitos técnicos (hormônio/relógio biológico placeholders, grab/carry
+  sem efeito, colisor circular, loop `asyncio` único).
 
 Detalhe completo e atualizado em [`docs/roadmap.md`](docs/roadmap.md).
 
