@@ -2,7 +2,7 @@ from simulation.physics import PhysicsEngine, COLLISION_CATEGORY_CREATURE, COLLI
 from simulation.food import Food
 from simulation.creature import Creature, LifeStage
 from simulation.sensors import compute_vision, VISION_RADIUS, VISION_FOV_DEGREES
-from simulation.rtneat_wrapper import organic_crossover, mutate_genome, clone_genome
+from simulation.rtneat_wrapper import organic_crossover, mutate_genome, clone_genome, load_neat_config
 from simulation.params import get_params
 from simulation.metrics import compute_metrics, METRICS_SAMPLE_INTERVAL, METRICS_HISTORY_MAX
 from simulation.oasis import (
@@ -43,6 +43,9 @@ ASEXUAL_REPRODUCTION_COOLDOWN = 45.0  # BIT-20: era 20 — 4.5x o cooldown sexua
 # a aceleracao acontece por SUBSTEPS de dt fixo (ver main.simulation_loop) — estabilidade do Pymunk
 # e economia de energia dependem do dt constante.
 ALLOWED_SPEEDS = (0.5, 1.0, 2.0, 4.0)
+
+HALL_OF_FAME_SIZE = 12              # genomas de elite preservados através de extinções
+HALL_OF_FAME_CHILDREN_WEIGHT = 20.0 # peso de cada filho no proxy de fitness (≈20 s de vida)
 
 class SimulationEngine:
     def __init__(self):
@@ -92,6 +95,10 @@ class SimulationEngine:
         # _lifespan_sum acumula idades dos mortos para calcular avg_lifespan = sum/deaths_total.
         self.extinctions_total = 0
         self._lifespan_sum = 0.0
+
+        # BIT-31: hall of fame — lista ordenada desc. por score, cap HALL_OF_FAME_SIZE.
+        # Cada entrada: {"score": float, "genome": DefaultGenome, "generation": int}.
+        self.hall_of_fame = []
 
         # BIT-24: controle interativo de tempo e arrasto.
         self.paused = False
@@ -151,6 +158,29 @@ class SimulationEngine:
         """Contador monotonico de genome id, usado para criar genomas zero (Gen 0)."""
         self._next_genome_id += 1
         return self._next_genome_id
+
+    def _record_in_hall_of_fame(self, creature):
+        score = creature.age + HALL_OF_FAME_CHILDREN_WEIGHT * creature.children_count
+        if len(self.hall_of_fame) < HALL_OF_FAME_SIZE or score > self.hall_of_fame[-1]["score"]:
+            entry = {
+                "score": score,
+                "genome": clone_genome(creature.genome, creature.genome.key, creature.config),
+                "generation": creature.generation,
+            }
+            self.hall_of_fame.append(entry)
+            self.hall_of_fame.sort(key=lambda e: e["score"], reverse=True)
+            del self.hall_of_fame[HALL_OF_FAME_SIZE:]
+
+    def _spawn_from_hall_of_fame(self, count):
+        config = load_neat_config()
+        spawned = []
+        for i in range(count):
+            entry = self.hall_of_fame[i % len(self.hall_of_fame)]
+            child_id = self.next_genome_id()
+            genome = clone_genome(entry["genome"], child_id, config)
+            mutate_genome(genome, config)
+            spawned.append(Creature(self, genome=genome, generation=entry["generation"]))
+        return spawned
 
     def step(self, dt):
         """Atualiza um frame da simulação."""
@@ -306,6 +336,7 @@ class SimulationEngine:
                 alive_creatures.append(c)
             else:
                 self._lifespan_sum += c.age  # BIT-30: acumula antes de die() zerar estado
+                self._record_in_hall_of_fame(c)  # BIT-31
                 c.die()
                 self.deaths_total += 1
         self.creatures = alive_creatures
@@ -317,8 +348,12 @@ class SimulationEngine:
         # + regra real do README (populacao < 10, com sobreviventes: oasis denso nas posicoes deles)
         if len(self.creatures) == 0:
             self.extinctions_total += 1  # BIT-30
-            for _ in range(10):
-                self.add_creature(Creature(self, generation=0))
+            if self.hall_of_fame:
+                for child in self._spawn_from_hall_of_fame(10):
+                    self.add_creature(child)
+            else:
+                for _ in range(10):
+                    self.add_creature(Creature(self, generation=0))  # fallback: sem histórico ainda
             self._eden_active = False
         elif len(self.creatures) < EDEN_POPULATION_THRESHOLD:
             if not self._eden_active:
