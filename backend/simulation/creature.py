@@ -236,7 +236,7 @@ class Creature:
 
         # Fertilidade persistente (BIT-22): vira fertil ao ser ADULT, ja ter comido e alcancar o limiar.
         # Uma vez fertil, permanece ate acasalar (o roaming faz a energia cair, mas nao tira a aptidao).
-        if (self.life_stage == LifeStage.ADULT and self.has_eaten
+        if (self.life_stage in (LifeStage.ADULT, LifeStage.ELDER) and self.has_eaten
                 and self.energy >= FERTILITY_ENERGY_THRESHOLD):
             self.is_fertile = True
             
