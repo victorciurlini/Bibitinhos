@@ -189,7 +189,7 @@ def test_extinction_reseeds_with_generation_zero():
     engine = SimulationEngine()
     engine.step(DT)  # extincao: re-semeadura
 
-    assert len(engine.creatures) == 10
+    assert len(engine.creatures) == 15  # BIT-35: respawn é 15 (era 10)
     for c in engine.creatures:
         assert c.generation == 0
 

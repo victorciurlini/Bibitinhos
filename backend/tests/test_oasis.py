@@ -126,13 +126,14 @@ def test_eden_retriggers_after_population_recovers_above_threshold():
     assert engine._eden_active is True
 
 
-def test_population_zero_fallback_still_respawns_ten_creatures():
+def test_population_zero_fallback_still_respawns_creatures():
+    # BIT-35: respawn é 15 (era 10)
     engine = SimulationEngine()
     engine.creatures = []
 
     engine.step(1 / 30.0)
 
-    assert len(engine.creatures) == 10
+    assert len(engine.creatures) == 15
     assert engine._eden_active is False
 
 

@@ -16,13 +16,13 @@ LATERAL_GRIP_RATE = 20.0  # taxa de amortecimento lateral (1/segundo), tunavel
 # lateral por rotacao (BIT-07), ortogonal ao arrasto longitudinal; reduzi-lo abaixo de
 # ~11.1 quebra test_locomotion.py::test_lateral_velocity_is_damped_towards_zero_over_frames.
 CREATURE_MASS = 1.0
-STARTING_ENERGY = 75.0  # 75% de max_energy: crias precisam comer antes de poder se reproduzir
+STARTING_ENERGY = 85.0  # BIT-35: era 75 — margem extra para alcançar a primeira comida
 
 # BIT-22: reproducao sexuada por FERTILIDADE PERSISTENTE, nao por energia instantanea na colisao.
 # A criatura vira fertil ao atingir este limiar (tendo comido) e MANTEM a fertilidade mesmo com a
 # energia caindo no roaming, ate acasalar. O limiar e ALCANCAVEL de proposito (< max_energy); "comer
 # antes de acasalar" (BIT-16) e garantido pela flag has_eaten, nao pelo nivel de energia.
-FERTILITY_ENERGY_THRESHOLD = 60.0
+FERTILITY_ENERGY_THRESHOLD = 50.0  # BIT-35: era 60 — mais criaturas alcançam fertilidade
 
 # --- Economia de energia (BIT-20): explorar tem que ser mais barato que ficar parado ---
 # O modelo antigo (thrust*speed*0.1 + |torque|*size*0.05) cobrava 5.0/s para andar e so 0.5/s
@@ -33,12 +33,10 @@ MOVEMENT_REFERENCE_SPEED = 35.0  # px/s: velocidade real a partir da qual a cria
                                  # "explorando de verdade". 75% da terminal de 46.8 px/s medida sob
                                  # damping=0.35 (BIT-17); folgada o bastante para nao punir os ~2.6s
                                  # de aceleracao a partir do repouso.
-IDLE_PENALTY_RATE = 1.2          # energia/s de imposto de ociosidade, cheio quando parada.
-                                 # Calibrado (degrau 1 da escada de ajuste da spec): a 2.0 a multa
-                                 # somava-se a escassez de comida ja existente e a populacao colapsava
-                                 # (13 extincoes / 5 min). A 1.2 o ecossistema se sustenta (6 extincoes,
-                                 # contra 15 do codigo antigo) e girar parado continua sendo a PIOR
-                                 # estrategia — que e o ponto.
+IDLE_PENALTY_RATE = 0.8          # energia/s de imposto de ociosidade, cheio quando parada.
+                                 # BIT-35: era 1.2 — reduzido para aliviar pressão energética global;
+                                 # girar parado continua sendo a pior estratégia, mas sem colapsar
+                                 # populações pequenas que ainda não encontraram comida.
 MOTOR_FORWARD_COST = 0.6         # energia/s a full thrust (era efetivamente 5.0/s)
 SPIN_COST = 1.0                  # energia/s a full torque, mas so quando parada: curvar enquanto se
                                  # move e de graca (a criatura precisa virar p/ perseguir comida)
@@ -55,7 +53,7 @@ class LifeStage(Enum):
 METABOLISM_RATE_BY_STAGE = {
     LifeStage.EGG: 0.0,
     LifeStage.JUVENILE: 0.3,
-    LifeStage.ADULT: 0.8,
+    LifeStage.ADULT: 0.5,    # BIT-35: era 0.8 — adulto sobrevive mais tempo sem comida
     LifeStage.ELDER: 2.0,
 }
 
