@@ -70,18 +70,18 @@ def compute_vision(creature, engine):
 
     hunger = 1.0 - min(creature.energy / creature.max_energy, 1.0)
     energy_fraction = min(creature.energy / creature.max_energy, 1.0)
-    is_adult = creature.life_stage == LifeStage.ADULT
+    is_mature = creature.life_stage in (LifeStage.ADULT, LifeStage.ELDER)  # BIT-33: ELDER fértil
 
-    # Neutralizacao da repulsao (BIT-21): um adulto PRONTO para acasalar percebe outras criaturas como
-    # sinal POSITIVO (atrativo) — assim a mesma semente de food-taxis o puxa na direcao de parceiros,
-    # em vez de repeli-lo. Quem comer vs. acasalar no contato e resolvido pelo tipo de colisao no
-    # engine, nao por este canal — logo "borrar" o sinal para um adulto pronto e inofensivo.
+    # Neutralizacao da repulsao (BIT-21): um bibite MADURO (ADULT ou ELDER) PRONTO para acasalar
+    # percebe outras criaturas como sinal POSITIVO (atrativo) — assim a mesma semente de food-taxis
+    # o puxa na direcao de parceiros, em vez de repeli-lo. Quem comer vs. acasalar no contato e
+    # resolvido pelo tipo de colisao no engine, nao por este canal.
     observer_ready_to_mate = (
-        is_adult
+        is_mature
         and energy_fraction >= MATE_ATTRACTION_ENERGY_FRACTION
         and creature.reproduction_cooldown <= 0.0
     )
-    mate_signal = energy_fraction if is_adult else 0.0
+    mate_signal = energy_fraction if is_mature else 0.0
     creature_sign = 1.0 if observer_ready_to_mate else -1.0
 
     vision = [0.0] * NUM_VISION_SECTORS

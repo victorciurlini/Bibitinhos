@@ -207,7 +207,7 @@ class SimulationEngine:
 
         sexual_children = []
         alive_adults = [c for c in self.creatures
-                        if c.is_alive and c.life_stage == LifeStage.ADULT]
+                        if c.is_alive and c.life_stage in (LifeStage.ADULT, LifeStage.ELDER)]
         radius_sq = MATING_RADIUS * MATING_RADIUS
         for i in range(len(alive_adults)):
             a = alive_adults[i]
@@ -256,7 +256,7 @@ class SimulationEngine:
         for creature in self.creatures:
             if not creature.is_alive:
                 continue
-            if creature.life_stage != LifeStage.ADULT:
+            if creature.life_stage not in (LifeStage.ADULT, LifeStage.ELDER):
                 continue
             if creature.sought_mate_this_frame:
                 continue
