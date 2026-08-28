@@ -58,11 +58,12 @@ def test_ttl_pauses_while_held():
     engine.step(1 / 30.0)
     assert creature.is_holding is True
 
-    # Avança mais que o FOOD_TTL completo em steps
+    # Avança mais que o FOOD_TTL completo em steps.
+    # Energia em 80: acima do limiar de consumo (50) e abaixo do mínimo de reprodução
+    # assexuada (100) — evita que a reprodução drene energia e dispare o consumo.
     steps = int(FOOD_TTL / (1 / 30.0)) + 10
-    # Garante que não vai consumir por fome (mantém energia alta)
     for _ in range(steps):
-        creature.energy = 100.0
+        creature.energy = 80.0
         creature.action_grab_drop = True
         engine.step(1 / 30.0)
 
