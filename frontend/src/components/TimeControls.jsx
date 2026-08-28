@@ -4,7 +4,7 @@
 // a suposicao de que o comando foi aplicado. Estetica bioluminescente (ver hudTheme.js).
 import { HUD } from './hudTheme';
 
-const SPEEDS = [0.5, 1, 2, 4];
+const SPEEDS = [0.5, 1, 2, 4, 8, 50];
 
 const CONTAINER_STYLE = {
   display: 'flex',

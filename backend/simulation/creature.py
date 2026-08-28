@@ -33,11 +33,8 @@ MOVEMENT_REFERENCE_SPEED = 35.0  # px/s: velocidade real a partir da qual a cria
                                  # "explorando de verdade". 75% da terminal de 46.8 px/s medida sob
                                  # damping=0.35 (BIT-17); folgada o bastante para nao punir os ~2.6s
                                  # de aceleracao a partir do repouso.
-IDLE_PENALTY_RATE = 0.8          # energia/s de imposto de ociosidade, cheio quando parada.
-                                 # BIT-35: era 1.2 — reduzido para aliviar pressão energética global;
-                                 # girar parado continua sendo a pior estratégia, mas sem colapsar
-                                 # populações pequenas que ainda não encontraram comida.
-MOTOR_FORWARD_COST = 0.6         # energia/s a full thrust (era efetivamente 5.0/s)
+IDLE_PENALTY_RATE = 1.1          # energia/s de imposto de ociosidade, cheio quando parada.
+MOTOR_FORWARD_COST = 0.2         # energia/s a full thrust (era efetivamente 5.0/s)
 SPIN_COST = 1.0                  # energia/s a full torque, mas so quando parada: curvar enquanto se
                                  # move e de graca (a criatura precisa virar p/ perseguir comida)
 

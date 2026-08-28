@@ -45,8 +45,8 @@ def test_genome_to_dict_zero_genome_node_counts(genome, config):
     types = [n["type"] for n in d["nodes"].values()]
     assert types.count("input") == len(gc.input_keys)
     assert types.count("output") == len(gc.output_keys)
-    assert types.count("hidden") == 0
-    assert len(d["nodes"]) == len(gc.input_keys) + len(gc.output_keys)
+    assert types.count("hidden") == gc.num_hidden
+    assert len(d["nodes"]) == len(gc.input_keys) + len(gc.output_keys) + gc.num_hidden
 
 
 def test_genome_to_dict_input_nodes_come_from_config(genome, config):
@@ -91,14 +91,14 @@ def test_genome_to_dict_key_and_json_safe(genome, config):
 
 def test_genome_to_dict_hidden_node(genome, config):
     # mutate_add_node divide uma conexao existente e cria um no intermediario;
-    # o genoma zero e totalmente conectado, entao uma chamada basta.
+    # com num_hidden=2, o genoma zero ja tem 2 hidden — apos a mutacao fica com 3.
     genome.mutate_add_node(config.genome_config)
     d = genome_to_dict(genome, config)
     hidden = [n for n in d["nodes"].values() if n["type"] == "hidden"]
-    assert len(hidden) == 1
-    entry = hidden[0]
-    assert "label" not in entry  # hidden nao tem label do contrato
-    assert entry["bias"] == genome.nodes[entry["key"]].bias
+    assert len(hidden) == config.genome_config.num_hidden + 1
+    for entry in hidden:
+        assert "label" not in entry  # hidden nao tem label do contrato
+        assert entry["bias"] == genome.nodes[entry["key"]].bias
     json.dumps(d)
 
 
