@@ -24,8 +24,10 @@ def test_load_neat_config_is_cached():
 def test_create_zero_genome_is_fully_connected():
     config = load_neat_config()
     genome = create_zero_genome(1, config)
-    assert len(genome.connections) == 64
-    assert len(genome.nodes) == 4
+    # BIT-36: num_hidden=2, full_direct → 16×6 input→{output,hidden} + 2×4 hidden→output = 104
+    assert len(genome.connections) == 104
+    # 4 outputs + 2 hidden = 6 (inputs são implícitos no neat-python 0.92)
+    assert len(genome.nodes) == 6
 
 
 def test_network_activates_with_16_inputs_returns_4_outputs():

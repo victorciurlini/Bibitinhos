@@ -2,7 +2,7 @@ from simulation.physics import PhysicsEngine, COLLISION_CATEGORY_CREATURE, COLLI
 from simulation.food import Food
 from simulation.creature import Creature, LifeStage
 from simulation.sensors import compute_vision, VISION_RADIUS, VISION_FOV_DEGREES
-from simulation.rtneat_wrapper import organic_crossover, mutate_genome, clone_genome
+from simulation.rtneat_wrapper import organic_crossover, mutate_genome, clone_genome, load_neat_config
 from simulation.params import get_params
 from simulation.metrics import compute_metrics, METRICS_SAMPLE_INTERVAL, METRICS_HISTORY_MAX
 from simulation.oasis import (
@@ -24,14 +24,9 @@ import math
 import random
 
 BRAIN_TICK_INTERVAL = 1 / 10.0
-MATING_RADIUS = 150.0  # BIT-22: acasalamento por PROXIMIDADE, nao por colisao exata no mesmo frame
-                       # (evento raro demais em espaco continuo esparso). Ambos ainda precisam querer
-                       # (action_mate) — o cerebro segue no comando.
-                       # Calibracao (passo 9 da spec, degrau 1): 120 dava ~1/run com um seed em 0;
-                       # subir para 150 leva a media a ~2.6/run e torna a sexuada recorrente em todos
-                       # os 5 seeds testados (0 extincoes, Eden como seguro).
-REPRODUCTION_ENERGY_COST = 30.0  # BIT-20: era 50 — recompensa reproduzir (pos-parto sobra 45, sobrevivivel)
-REPRODUCTION_COOLDOWN = 10.0
+MATING_RADIUS = 200.0  # BIT-35: era 150 — encontros mais frequentes em mapa esparso
+REPRODUCTION_ENERGY_COST = 20.0  # BIT-35: era 30 — mais oportunidades pós-parto
+REPRODUCTION_COOLDOWN = 6.0      # BIT-35: era 10 — menos tempo entre acasalamentos
 # MIN_ENERGY_TO_MATE removido (BIT-22): substituido por is_fertile. O unico piso de energia no
 # acasalamento e a sobrevivencia (energia >= REPRODUCTION_ENERGY_COST, para nao acasalar ate a morte).
 MIN_ENERGY_TO_REPRODUCE_ASEXUALLY = 100.0  # BIT-22: era 90 — assexuada exige energia cheia
@@ -42,7 +37,18 @@ ASEXUAL_REPRODUCTION_COOLDOWN = 45.0  # BIT-20: era 20 — 4.5x o cooldown sexua
 # BIT-24: velocidades de tempo permitidas (controle interativo). Nunca aumentamos o dt do step;
 # a aceleracao acontece por SUBSTEPS de dt fixo (ver main.simulation_loop) — estabilidade do Pymunk
 # e economia de energia dependem do dt constante.
-ALLOWED_SPEEDS = (0.5, 1.0, 2.0, 4.0)
+ALLOWED_SPEEDS = (0.5, 1.0, 2.0, 4.0, 8.0, 50.0)
+
+HALL_OF_FAME_SIZE = 20              # BIT-35: era 12 — mais diversidade genética preservada
+HALL_OF_FAME_CHILDREN_WEIGHT = 20.0 # peso de cada filho no proxy de fitness (≈20 s de vida)
+HALL_OF_FAME_FOOD_WEIGHT = 1.0      # BIT-35: peso por comida ingerida no score do HoF
+
+# BIT-35: pressão adaptativa de população — multiplica food spawn chance pela população atual.
+# pop < LOW → comida abundante (suporte à recuperação); pop > HIGH → seleção natural mais intensa.
+LOW_POP_FOOD_THRESHOLD = 15
+HIGH_POP_FOOD_THRESHOLD = 50
+FOOD_MULTIPLIER_LOW_POP = 1.5
+FOOD_MULTIPLIER_HIGH_POP = 0.75
 
 class SimulationEngine:
     def __init__(self):
@@ -92,6 +98,10 @@ class SimulationEngine:
         # _lifespan_sum acumula idades dos mortos para calcular avg_lifespan = sum/deaths_total.
         self.extinctions_total = 0
         self._lifespan_sum = 0.0
+
+        # BIT-31: hall of fame — lista ordenada desc. por score, cap HALL_OF_FAME_SIZE.
+        # Cada entrada: {"score": float, "genome": DefaultGenome, "generation": int}.
+        self.hall_of_fame = []
 
         # BIT-24: controle interativo de tempo e arrasto.
         self.paused = False
@@ -152,6 +162,40 @@ class SimulationEngine:
         self._next_genome_id += 1
         return self._next_genome_id
 
+    def _record_in_hall_of_fame(self, creature):
+        score = (creature.age
+                 + HALL_OF_FAME_CHILDREN_WEIGHT * creature.children_count
+                 + HALL_OF_FAME_FOOD_WEIGHT * creature.food_eaten)  # BIT-35: inclui caça de comida
+        if len(self.hall_of_fame) < HALL_OF_FAME_SIZE or score > self.hall_of_fame[-1]["score"]:
+            entry = {
+                "score": score,
+                "genome": clone_genome(creature.genome, creature.genome.key, creature.config),
+                "generation": creature.generation,
+            }
+            self.hall_of_fame.append(entry)
+            self.hall_of_fame.sort(key=lambda e: e["score"], reverse=True)
+            del self.hall_of_fame[HALL_OF_FAME_SIZE:]
+
+    def _compute_food_multiplier(self) -> float:
+        """BIT-35: homeostase ecológica — ajusta densidade de comida pela população atual."""
+        pop = len(self.creatures)
+        if pop < LOW_POP_FOOD_THRESHOLD:
+            return FOOD_MULTIPLIER_LOW_POP
+        elif pop > HIGH_POP_FOOD_THRESHOLD:
+            return FOOD_MULTIPLIER_HIGH_POP
+        return 1.0
+
+    def _spawn_from_hall_of_fame(self, count):
+        config = load_neat_config()
+        spawned = []
+        for i in range(count):
+            entry = self.hall_of_fame[i % len(self.hall_of_fame)]
+            child_id = self.next_genome_id()
+            genome = clone_genome(entry["genome"], child_id, config)
+            mutate_genome(genome, config)
+            spawned.append(Creature(self, genome=genome, generation=entry["generation"]))
+        return spawned
+
     def step(self, dt):
         """Atualiza um frame da simulação."""
         self.time_elapsed += dt
@@ -177,7 +221,7 @@ class SimulationEngine:
 
         sexual_children = []
         alive_adults = [c for c in self.creatures
-                        if c.is_alive and c.life_stage == LifeStage.ADULT]
+                        if c.is_alive and c.life_stage in (LifeStage.ADULT, LifeStage.ELDER)]
         radius_sq = MATING_RADIUS * MATING_RADIUS
         for i in range(len(alive_adults)):
             a = alive_adults[i]
@@ -226,7 +270,7 @@ class SimulationEngine:
         for creature in self.creatures:
             if not creature.is_alive:
                 continue
-            if creature.life_stage != LifeStage.ADULT:
+            if creature.life_stage not in (LifeStage.ADULT, LifeStage.ELDER):
                 continue
             if creature.sought_mate_this_frame:
                 continue
@@ -271,12 +315,13 @@ class SimulationEngine:
             self.oases.append(Oasis(x, y))
 
         if len(self.foods) < MAX_TOTAL_FOOD:
+            _food_mult = self._compute_food_multiplier()  # BIT-35: homeostase adaptativa
             for oasis in self.oases:
                 food_in_oasis = sum(
                     1 for f in self.foods
                     if (f.body.position.x - oasis.x) ** 2 + (f.body.position.y - oasis.y) ** 2 <= oasis.radius ** 2
                 )
-                if food_in_oasis < oasis.food_cap and random.random() < OASIS_FOOD_SPAWN_CHANCE:
+                if food_in_oasis < oasis.food_cap and random.random() < OASIS_FOOD_SPAWN_CHANCE * _food_mult:
                     fx, fy = oasis.random_point_inside()
                     fx = max(0, min(self.width, fx))
                     fy = max(0, min(self.height, fy))
@@ -306,6 +351,7 @@ class SimulationEngine:
                 alive_creatures.append(c)
             else:
                 self._lifespan_sum += c.age  # BIT-30: acumula antes de die() zerar estado
+                self._record_in_hall_of_fame(c)  # BIT-31
                 c.die()
                 self.deaths_total += 1
         self.creatures = alive_creatures
@@ -317,8 +363,12 @@ class SimulationEngine:
         # + regra real do README (populacao < 10, com sobreviventes: oasis denso nas posicoes deles)
         if len(self.creatures) == 0:
             self.extinctions_total += 1  # BIT-30
-            for _ in range(10):
-                self.add_creature(Creature(self, generation=0))
+            if self.hall_of_fame:
+                for child in self._spawn_from_hall_of_fame(15):  # BIT-35: era 10
+                    self.add_creature(child)
+            else:
+                for _ in range(15):  # BIT-35: era 10
+                    self.add_creature(Creature(self, generation=0))  # fallback: sem histórico ainda
             self._eden_active = False
         elif len(self.creatures) < EDEN_POPULATION_THRESHOLD:
             if not self._eden_active:
