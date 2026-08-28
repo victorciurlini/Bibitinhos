@@ -54,21 +54,24 @@ MOTOR_FORWARD_NODE_KEY = 0
 MOTOR_FORWARD_SEED_BIAS_MIN = 0.3
 MOTOR_FORWARD_SEED_BIAS_MAX = 1.0
 
-# Seed de food-taxis (BIT-21): a Gen-0 nasce virando em direcao a comida que enxerga.
-# Com weight_init_mean=0.0, os 9 pesos visao[i]->Motor_Torque nascem aleatorios N(0,1) e so 47,5%
-# das criaturas viram para o lado certo da comida (medido). Semeando peso = STEER_GAIN*(i-4), o setor
-# central (i=4) recebe 0 (segue reto) e as bordas recebem torque proporcional ao desvio, na direcao
-# correta (torque + = CCW = setores i>4). Medido: 97% da Gen-0 vira para a comida com STEER_GAIN=1.0.
+# Seed de food-taxis (BIT-21/BIT-37): a Gen-0 nasce virando em direcao a comida que enxerga.
+# Com STEER_GAIN=1.0 (BIT-21), 97% da Gen-0 virava para a comida — pouco espaco para evolucao.
+# Reduzido para 0.5 (BIT-37): aprox 65-70% viram para a comida, mantendo pressao seletiva real.
+# Os pesos visao[i]->Motor_Torque nascem em STEER_GAIN*(i-4): setor central (i=4) recebe 0
+# (segue reto) e bordas recebem torque proporcional ao desvio, na direcao correta (torque + = CCW).
 # SEED, nao hardcode: mutacao/crossover podem ajustar; filhos nao passam por aqui.
 MOTOR_TORQUE_NODE_KEY = 1
-FOOD_TAXIS_STEER_GAIN = 1.0
+FOOD_TAXIS_STEER_GAIN = 0.5
 
-# Seed de impeto reprodutivo (BIT-21): adultos saciados nascem QUERENDO acasalar (Action_Mate=node 3).
-# Com bias 0.0 so 56% dos adultos saciados disparam mate; com U(1.5,2.5) sobe para ~93-99% (medido),
-# fazendo com que dois adultos prontos que se cruzam efetivamente acasalem. SEED evolutivel.
+# Seed de impeto reprodutivo (BIT-21/BIT-37): adultos saciados nascem inclinados a acasalar.
+# Com U(1.5,2.5) (BIT-21), 93-99% dos adultos saciados ativavam mate — pouco espaco para evolucao.
+# Reduzido para U(0.8,1.5) (BIT-37): aprox 60-75% dos adultos saciados querem acasalar.
+# Com inputs zerados tanh(bias) > 0 para todo bias > 0, entao qualquer valor no range ativa mate
+# em cenario de inputs nulos. Em presenca de sinais negativos (fome, repulsao), a selecao natural
+# pode suprimir ou fortalecer o impeto. SEED evolutivel.
 ACTION_MATE_NODE_KEY = 3
-ACTION_MATE_SEED_BIAS_MIN = 1.5
-ACTION_MATE_SEED_BIAS_MAX = 2.5
+ACTION_MATE_SEED_BIAS_MIN = 0.8
+ACTION_MATE_SEED_BIAS_MAX = 1.5
 
 # Labels legiveis do contrato de I/O (BIT-27), espelhando a docstring do modulo acima.
 # INPUT_LABELS[i] casa com o node key -(i+1) (mesma ordem de config.genome_config.input_keys);
@@ -106,6 +109,16 @@ def create_zero_genome(genome_id, config):
     """
     genome = config.genome_type(genome_id)
     genome.configure_new(config.genome_config)
+
+    # Com num_hidden > 0, as conexoes hidden->output nascem com pesos aleatorios N(0,1) e podem
+    # cancelar o bias seedado de Motor_Forward. Zerar esses pesos deixa as hidden nodes dormentes
+    # na Gen-0: o comportamento inicial e determinado apenas pelos seeds diretos abaixo, e as
+    # hidden nodes evoluem naturalmente pelas geracoes seguintes.
+    gc = config.genome_config
+    for (from_key, _), conn in genome.connections.items():
+        if from_key not in gc.input_keys and from_key not in gc.output_keys:
+            conn.weight = 0.0
+
     # Vies inicial positivo em Motor_Forward: a Gen 0 (e os respawns do Eden) ja nasce andando.
     if MOTOR_FORWARD_NODE_KEY in genome.nodes:
         genome.nodes[MOTOR_FORWARD_NODE_KEY].bias = random.uniform(
