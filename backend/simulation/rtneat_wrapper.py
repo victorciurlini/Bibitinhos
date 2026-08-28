@@ -82,6 +82,7 @@ INPUT_LABELS = [
     "Visual_Sector_4", "Visual_Sector_5", "Visual_Sector_6", "Visual_Sector_7",
     "Visual_Sector_8", "Energy_Level", "Age_Degradation", "Hormonal_Level",
     "Biological_Clock", "Load_Sensor", "Kinetic_Linear", "Kinetic_Angular",
+    "Wall_North", "Wall_South", "Wall_West", "Wall_East",  # BIT-38
 ]
 OUTPUT_LABELS = ["Motor_Forward", "Motor_Torque", "Action_Grab_Drop", "Action_Mate"]
 

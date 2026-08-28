@@ -163,6 +163,13 @@ class Creature:
 
     def think(self, engine):
         """Roda a rede neural a 10 FPS (brain tick) e cacheia as 4 saidas de atuadores."""
+        # BIT-38: Sensores de proximidade de parede (normalizados [0,1], 0=perto, 1=longe/limite oposto)
+        cx, cy = self.body.position.x, self.body.position.y
+        wall_north = min(1.0, max(0.0, cy / engine.height))
+        wall_south = min(1.0, max(0.0, (engine.height - cy) / engine.height))
+        wall_west = min(1.0, max(0.0, cx / engine.width))
+        wall_east = min(1.0, max(0.0, (engine.width - cx) / engine.width))
+
         inputs = list(self.vision) + [
             min(self.energy / self.max_energy, 1.0),                                    # Energy_Level
             min(self.age / AGE_DEGRADATION_SCALE, 1.0),                                  # Age_Degradation
@@ -171,6 +178,10 @@ class Creature:
             1.0 if self.is_holding else 0.0,                                             # Load_Sensor
             max(-1.0, min(1.0, self.body.velocity.length / KINETIC_LINEAR_NORM)),        # Kinetic_Feedback linear
             max(-1.0, min(1.0, self.body.angular_velocity / KINETIC_ANGULAR_NORM)),      # Kinetic_Feedback angular
+            wall_north,  # Índice 16: Wall_North
+            wall_south,  # Índice 17: Wall_South
+            wall_west,   # Índice 18: Wall_West
+            wall_east,   # Índice 19: Wall_East
         ]
         outputs = self.net.activate(inputs)
         self.motor_forward = outputs[0]
