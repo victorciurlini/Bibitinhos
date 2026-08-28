@@ -38,6 +38,9 @@ MOTOR_FORWARD_COST = 0.05        # energia/s a full thrust (era efetivamente 5.0
 SPIN_COST = 0.3                  # energia/s a full torque, mas so quando parada: curvar enquanto se
                                  # move e de graca (a criatura precisa virar p/ perseguir comida)
 
+HELD_FOOD_CONSUME_ENERGY_FRACTION = 0.5  # abaixo desta fração de energia, consome a comida carregada
+HELD_FOOD_MOUTH_OFFSET = 15.0            # px à frente do centro onde a comida carregada é fixada
+
 class LifeStage(Enum):
     EGG = 0
     JUVENILE = 1
@@ -159,7 +162,34 @@ class Creature:
         self.motor_torque = 0.0
         self.action_grab_drop = False
         self.action_mate = False
-        self.is_holding = False  # placeholder do Load_Sensor; mecanica de grab fora de escopo desta task
+        self.is_holding = False
+        self.held_food = None
+        self.food_grabbed = 0
+
+    def grab_food(self, food):
+        """Pega um item: sai do space (vira inventário), TTL pausa, passa a seguir a boca."""
+        space = self.engine.physics.space if getattr(self.engine, "physics", None) else None
+        if space is not None and food.body in space.bodies:
+            space.remove(food.body, food.shape)
+        food.is_held = True
+        self.held_food = food
+        self.is_holding = True
+        self.food_grabbed += 1
+
+    def drop_food(self):
+        """Solta o item de volta ao mundo na posição atual da criatura; TTL volta a correr."""
+        food = self.held_food
+        if food is None:
+            return
+        food.is_held = False
+        food.ttl = food.max_ttl
+        food.body.position = self.body.position
+        food.body.velocity = (0, 0)
+        space = self.engine.physics.space if getattr(self.engine, "physics", None) else None
+        if space is not None and food.body not in space.bodies and food.is_active:
+            space.add(food.body, food.shape)
+        self.held_food = None
+        self.is_holding = False
 
     def think(self, engine):
         """Roda a rede neural a 10 FPS (brain tick) e cacheia as 4 saidas de atuadores."""
@@ -245,9 +275,24 @@ class Creature:
         if (self.life_stage in (LifeStage.ADULT, LifeStage.ELDER) and self.has_eaten
                 and self.energy >= FERTILITY_ENERGY_THRESHOLD):
             self.is_fertile = True
-            
+
+        if self.is_alive and self.is_holding and self.held_food is not None:
+            if self.energy < HELD_FOOD_CONSUME_ENERGY_FRACTION * self.max_energy:
+                food = self.held_food
+                self.energy = min(self.energy + food.energy_value, self.max_energy)
+                self.has_eaten = True
+                self.food_eaten += 1
+                self.held_food = None
+                self.is_holding = False
+                food.is_held = False
+                food.consume()
+            elif not self.action_grab_drop:
+                self.drop_food()
+
     def die(self):
         self.is_alive = False
+        if self.held_food is not None:
+            self.drop_food()
         if hasattr(self.engine, 'physics') and self.engine.physics is not None:
             if self.body in self.engine.physics.space.bodies:
                 self.engine.physics.space.remove(self.body, self.shape)
