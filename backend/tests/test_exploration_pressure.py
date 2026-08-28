@@ -202,7 +202,7 @@ def test_gen0_genomes_are_all_seeded_to_move_forward():
         assert MOTOR_FORWARD_SEED_BIAS_MIN <= bias <= MOTOR_FORWARD_SEED_BIAS_MAX
 
         net = neat.nn.FeedForwardNetwork.create(genome, config)
-        outputs = net.activate([0.0] * 16)  # sem nada no cone de visao, sensores zerados
+        outputs = net.activate([0.0] * 20)  # sem nada no cone de visao, sensores zerados
         assert outputs[0] > 0.0, "genoma da Gen 0 nasceu incapaz de andar"
 
 
