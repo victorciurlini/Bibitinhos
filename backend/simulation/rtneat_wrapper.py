@@ -19,6 +19,8 @@ Inputs (indice -> sensor, inputs[i] mapeia para node key -(i+1)):
     12    Biological_Clock (-1.0-1.0)
     13    Load_Sensor      (0.0/0.5/1.0)
     14-15 Kinetic_Feedback (2 canais: velocidade linear/angular local)
+    16-19 Wall_Proximity   (4 canais: Norte, Sul, Oeste, Leste; [0,1], 0=perto da parede,
+                           1=parede oposta — BIT-38)
 
 Outputs (indice -> acao, output_keys 0..3):
     0  Motor_Forward     (continuo +-, tanh)
@@ -181,7 +183,7 @@ def genome_to_dict(genome, config):
     """Serializa a topologia do genoma em dict JSON-safe para o inspetor (BIT-27).
 
     Os nodes de INPUT nao existem em genome.nodes no NEAT 0.92 (sao implicitos);
-    vem de config.genome_config.input_keys (-1..-16, na ordem do contrato).
+    vem de config.genome_config.input_keys (-1..-20, na ordem do contrato).
     genome.nodes contem apenas outputs (0..3) e hidden (>= 4).
     """
     gc = config.genome_config
