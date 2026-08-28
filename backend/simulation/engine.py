@@ -1,6 +1,6 @@
 from simulation.physics import PhysicsEngine, COLLISION_CATEGORY_CREATURE, COLLISION_CATEGORY_FOOD
 from simulation.food import Food
-from simulation.creature import Creature, LifeStage
+from simulation.creature import Creature, LifeStage, HELD_FOOD_MOUTH_OFFSET
 from simulation.sensors import compute_vision, VISION_RADIUS, VISION_FOV_DEGREES
 from simulation.rtneat_wrapper import organic_crossover, mutate_genome, clone_genome, load_neat_config
 from simulation.params import get_params, reset_params
@@ -59,11 +59,14 @@ class SimulationEngine:
             creature_shape, food_shape = arbiter.shapes
             creature = creature_shape.owner
             food = food_shape.owner
-            if food.is_active and creature.is_alive:
-                creature.energy = min(creature.energy + food.energy_value, creature.max_energy)
-                creature.has_eaten = True  # BIT-22: habilita fertilidade (comer antes de acasalar)
-                creature.food_eaten += 1   # BIT-30: contador de linhagem
-                food.consume()
+            if food.is_active and creature.is_alive and not food.is_held:
+                if creature.action_grab_drop and not creature.is_holding:
+                    creature.grab_food(food)
+                else:
+                    creature.energy = min(creature.energy + food.energy_value, creature.max_energy)
+                    creature.has_eaten = True
+                    creature.food_eaten += 1
+                    food.consume()
             return True  # deixa a resolucao fisica normal acontecer (elasticity ja configurada nos shapes)
 
         self.physics.space.on_collision(
@@ -302,6 +305,8 @@ class SimulationEngine:
         # 0.5. Comida apodrece: TTL libera vaga no cap global (MAX_TOTAL_FOOD), sem isso
         # comida orfa de oasis expirados satura o mapa e a renovacao para (BIT-18).
         for food in self.foods:
+            if food.is_held:
+                continue
             food.ttl -= dt
             if food.ttl <= 0 and food.is_active:
                 food.consume()
@@ -345,6 +350,14 @@ class SimulationEngine:
         # 3. Atualizar todas as criaturas
         for creature in self.creatures:
             creature.update(dt, self)
+
+        # BIT-32: reposicionar comida carregada na boca da criatura
+        for creature in self.creatures:
+            if creature.is_alive and creature.is_holding and creature.held_food is not None:
+                mx = creature.body.position.x + HELD_FOOD_MOUTH_OFFSET * math.cos(creature.body.angle)
+                my = creature.body.position.y + HELD_FOOD_MOUTH_OFFSET * math.sin(creature.body.angle)
+                creature.held_food.body.position = (mx, my)
+                creature.held_food.body.velocity = (0, 0)
 
         # 4. Remover criaturas mortas
         alive_creatures = []

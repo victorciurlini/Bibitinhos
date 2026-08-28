@@ -17,6 +17,8 @@ class Food:
         self.energy_value = FOOD_ENERGY_VALUE if energy_value is None else energy_value
         self.is_active = True
         self.ttl = FOOD_TTL
+        self.max_ttl = FOOD_TTL
+        self.is_held = False
 
         # Pymunk Physics integration: corpo dinamico leve, permite ser empurrada
         moment = pymunk.moment_for_circle(FOOD_MASS, 0, FOOD_RADIUS)
@@ -49,5 +51,6 @@ class Food:
             "y": self.body.position.y,
             "energy_value": self.energy_value,
             "radius": self.shape.radius,
-            "color": "#ffff00" # Amarelo para representar comida
+            "color": "#ffff00",
+            "held": self.is_held,
         }
