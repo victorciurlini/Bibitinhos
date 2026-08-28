@@ -21,10 +21,10 @@ import sys
 PARAM_SPECS = {
     # --- Energia ---
     "idle_penalty_rate":        {"group": "Energia", "label": "Imposto de ociosidade (E/s)",
-        "default": 1.1, "min": 0.0, "max": 5.0, "step": 0.1,
+        "default": 0.8, "min": 0.0, "max": 5.0, "step": 0.1,
         "bindings": [("simulation.creature", "IDLE_PENALTY_RATE")]},
     "motor_forward_cost":       {"group": "Energia", "label": "Custo de propulsao (E/s)",
-        "default": 0.2, "min": 0.0, "max": 5.0, "step": 0.1,
+        "default": 0.6, "min": 0.0, "max": 5.0, "step": 0.1,
         "bindings": [("simulation.creature", "MOTOR_FORWARD_COST")]},
     "spin_cost":                {"group": "Energia", "label": "Custo de girar parado (E/s)",
         "default": 1.0, "min": 0.0, "max": 5.0, "step": 0.1,

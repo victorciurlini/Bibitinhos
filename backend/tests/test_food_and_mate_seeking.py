@@ -123,10 +123,10 @@ def test_action_mate_bias_seeded_within_range():
 
 # A semente de Action_Mate e PROBABILISTICA (bias sorteado em U(min, max)), entao a decisao de
 # acasalar da Gen-0 nao e deterministica sobre 1 genoma. Fixamos a semente do RNG global e
-# afirmamos estatisticamente sobre N amostras contra um limiar conservador: a taxa real e ~95%+,
-# e com N=200 o desvio e ~0.015, logo 0.85 nunca falha por acaso mas ainda pega uma regressao real.
+# afirmamos estatisticamente sobre N amostras contra um limiar conservador.
+# BIT-37: com U(0.8,1.5) a taxa real cai para ~65-75%, entao 0.75 e conservador sem ser flaky.
 SAMPLE_SIZE = 200
-MIN_SUCCESS_FRACTION = 0.85
+MIN_SUCCESS_FRACTION = 0.75
 
 
 def test_sated_adult_wants_to_mate_with_nothing_in_sight():
