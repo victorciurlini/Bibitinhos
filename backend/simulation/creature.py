@@ -11,7 +11,7 @@ AGE_DEGRADATION_SCALE = 60.0
 MOTOR_TORQUE_SCALE = 20.0
 KINETIC_LINEAR_NORM = 200.0
 KINETIC_ANGULAR_NORM = 10.0
-LATERAL_GRIP_RATE = 20.0  # taxa de amortecimento lateral (1/segundo), tunavel
+LATERAL_GRIP_RATE = 20.0  # taxa de amortecimento lateral (1/segundo)
 # Nota (BIT-17): mantido inalterado ao introduzir arrasto de agua - corrige derrapagem
 # lateral por rotacao (BIT-07), ortogonal ao arrasto longitudinal; reduzi-lo abaixo de
 # ~11.1 quebra test_locomotion.py::test_lateral_velocity_is_damped_towards_zero_over_frames.
