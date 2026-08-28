@@ -15,7 +15,7 @@ def engine():
 # --- 1. Controle de tempo -------------------------------------------------
 
 def test_allowed_speeds_contract():
-    assert ALLOWED_SPEEDS == (0.5, 1.0, 2.0, 4.0)
+    assert ALLOWED_SPEEDS == (0.5, 1.0, 2.0, 4.0, 8.0, 50.0)
 
 
 def test_set_time_control_sets_paused(engine):

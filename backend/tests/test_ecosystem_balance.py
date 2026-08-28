@@ -39,8 +39,8 @@ def test_starting_energy_is_85():
     assert STARTING_ENERGY == 85.0
 
 
-def test_idle_penalty_rate_is_0_8():
-    assert IDLE_PENALTY_RATE == 0.8
+def test_idle_penalty_rate_is_1_1():
+    assert IDLE_PENALTY_RATE == 1.1
 
 
 def test_fertility_energy_threshold_is_50():

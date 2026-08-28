@@ -37,7 +37,7 @@ ASEXUAL_REPRODUCTION_COOLDOWN = 45.0  # BIT-20: era 20 — 4.5x o cooldown sexua
 # BIT-24: velocidades de tempo permitidas (controle interativo). Nunca aumentamos o dt do step;
 # a aceleracao acontece por SUBSTEPS de dt fixo (ver main.simulation_loop) — estabilidade do Pymunk
 # e economia de energia dependem do dt constante.
-ALLOWED_SPEEDS = (0.5, 1.0, 2.0, 4.0)
+ALLOWED_SPEEDS = (0.5, 1.0, 2.0, 4.0, 8.0, 50.0)
 
 HALL_OF_FAME_SIZE = 20              # BIT-35: era 12 — mais diversidade genética preservada
 HALL_OF_FAME_CHILDREN_WEIGHT = 20.0 # peso de cada filho no proxy de fitness (≈20 s de vida)

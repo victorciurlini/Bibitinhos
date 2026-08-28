@@ -33,7 +33,7 @@ PARAM_SPECS = {
         "default": 35.0, "min": 5.0, "max": 100.0, "step": 1.0,
         "bindings": [("simulation.creature", "MOVEMENT_REFERENCE_SPEED")]},
     "metabolism_adult":         {"group": "Energia", "label": "Metabolismo ADULT (E/s)",
-        "default": 0.2, "min": 0.0, "max": 5.0, "step": 0.1,
+        "default": 0.5, "min": 0.0, "max": 5.0, "step": 0.1,
         "apply": "_set_metabolism_adult", "read": "_get_metabolism_adult"},
     "metabolism_elder":         {"group": "Energia", "label": "Metabolismo ELDER (E/s)",
         "default": 1.0, "min": 0.0, "max": 10.0, "step": 0.1,
