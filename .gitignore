@@ -27,3 +27,5 @@ frontend/*.local
 # CodeGraph (indice local, regeneravel via `codegraph init`)
 .codegraph/
 codegraph-visual.html
+backend_err.log
+frontend_err.log

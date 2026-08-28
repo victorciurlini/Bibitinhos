@@ -1,10 +1,10 @@
 import pytest
 
 import simulation.engine as engine_module
-from simulation.creature import Creature, LifeStage, METABOLISM_RATE_BY_STAGE, IDLE_PENALTY_RATE
+import simulation.creature as creature_module
+from simulation.creature import Creature, LifeStage, METABOLISM_RATE_BY_STAGE
 from simulation.engine import (
     SimulationEngine,
-    ASEXUAL_REPRODUCTION_ENERGY_COST,
     ASEXUAL_REPRODUCTION_COOLDOWN,
     MIN_ENERGY_TO_REPRODUCE_ASEXUALLY,
 )
@@ -48,10 +48,11 @@ def test_asexual_reproduction_fires_when_alone_with_enough_energy():
     assert child.life_stage == LifeStage.EGG
 
     # Parada, ela tambem paga o imposto de ociosidade do BIT-20 no frame do update.
+    # Lê do módulo (não do import por valor) — reset_params no __init__ pode ter patchado.
     expected_energy = (
         100.0
-        - ASEXUAL_REPRODUCTION_ENERGY_COST
-        - DT * (METABOLISM_RATE_BY_STAGE[LifeStage.ADULT] + IDLE_PENALTY_RATE)
+        - engine_module.ASEXUAL_REPRODUCTION_ENERGY_COST
+        - DT * (METABOLISM_RATE_BY_STAGE[LifeStage.ADULT] + creature_module.IDLE_PENALTY_RATE)
     )
     assert parent.energy == pytest.approx(expected_energy)
 

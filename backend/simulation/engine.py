@@ -3,7 +3,7 @@ from simulation.food import Food
 from simulation.creature import Creature, LifeStage
 from simulation.sensors import compute_vision, VISION_RADIUS, VISION_FOV_DEGREES
 from simulation.rtneat_wrapper import organic_crossover, mutate_genome, clone_genome, load_neat_config
-from simulation.params import get_params
+from simulation.params import get_params, reset_params
 from simulation.metrics import compute_metrics, METRICS_SAMPLE_INTERVAL, METRICS_HISTORY_MAX
 from simulation.oasis import (
     Oasis,
@@ -108,6 +108,8 @@ class SimulationEngine:
         self.speed = 1.0
         self._held_creature = None
         self._drag_target = None
+
+        reset_params(self)
 
     def set_time_control(self, paused=None, speed=None):
         """Ajusta pausa/velocidade. Valores invalidos de speed sao ignorados (no-op) — inclusive

@@ -103,6 +103,7 @@ A spec deve ser **auto-suficiente**: o implementer deve poder executá-la sem co
 # Spec — BIT-XX: [Título completo da tarefa]
 
 **Linear:** N/A
+**Tipo:** feature | fix
 **Risco:** low | medium | high
 **Camada(s):** [Backend (Simulação) | API/WebSocket | Frontend | Infra | Múltiplas]
 

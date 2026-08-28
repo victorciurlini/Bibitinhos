@@ -11,9 +11,9 @@ from simulation.rtneat_wrapper import (
 
 def test_load_neat_config_parses_topology():
     config = load_neat_config()
-    assert config.genome_config.num_inputs == 16
+    assert config.genome_config.num_inputs == 20
     assert config.genome_config.num_outputs == 4
-    assert config.genome_config.input_keys == [-(i + 1) for i in range(16)]
+    assert config.genome_config.input_keys == [-(i + 1) for i in range(20)]
     assert config.genome_config.output_keys == [0, 1, 2, 3]
 
 
@@ -24,17 +24,17 @@ def test_load_neat_config_is_cached():
 def test_create_zero_genome_is_fully_connected():
     config = load_neat_config()
     genome = create_zero_genome(1, config)
-    # BIT-36: num_hidden=2, full_direct → 16×6 input→{output,hidden} + 2×4 hidden→output = 104
-    assert len(genome.connections) == 104
+    # BIT-38: num_hidden=2, full_direct → 20×6 input→{output,hidden} + 2×4 hidden→output = 128
+    assert len(genome.connections) == 128
     # 4 outputs + 2 hidden = 6 (inputs são implícitos no neat-python 0.92)
     assert len(genome.nodes) == 6
 
 
-def test_network_activates_with_16_inputs_returns_4_outputs():
+def test_network_activates_with_20_inputs_returns_4_outputs():
     config = load_neat_config()
     genome = create_zero_genome(1, config)
     net = neat.nn.FeedForwardNetwork.create(genome, config)
-    outputs = net.activate([0.0] * 16)
+    outputs = net.activate([0.0] * 20)
     assert len(outputs) == 4
 
 

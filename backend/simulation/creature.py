@@ -7,11 +7,11 @@ from enum import Enum
 from simulation.rtneat_wrapper import create_zero_genome, load_neat_config
 from simulation.physics import COLLISION_CATEGORY_CREATURE
 
-AGE_DEGRADATION_SCALE = 60.0
+AGE_DEGRADATION_SCALE = 30.0
 MOTOR_TORQUE_SCALE = 20.0
 KINETIC_LINEAR_NORM = 200.0
 KINETIC_ANGULAR_NORM = 10.0
-LATERAL_GRIP_RATE = 20.0  # taxa de amortecimento lateral (1/segundo), tunavel
+LATERAL_GRIP_RATE = 20.0  # taxa de amortecimento lateral (1/segundo)
 # Nota (BIT-17): mantido inalterado ao introduzir arrasto de agua - corrige derrapagem
 # lateral por rotacao (BIT-07), ortogonal ao arrasto longitudinal; reduzi-lo abaixo de
 # ~11.1 quebra test_locomotion.py::test_lateral_velocity_is_damped_towards_zero_over_frames.
@@ -33,9 +33,9 @@ MOVEMENT_REFERENCE_SPEED = 35.0  # px/s: velocidade real a partir da qual a cria
                                  # "explorando de verdade". 75% da terminal de 46.8 px/s medida sob
                                  # damping=0.35 (BIT-17); folgada o bastante para nao punir os ~2.6s
                                  # de aceleracao a partir do repouso.
-IDLE_PENALTY_RATE = 1.1          # energia/s de imposto de ociosidade, cheio quando parada.
-MOTOR_FORWARD_COST = 0.2         # energia/s a full thrust (era efetivamente 5.0/s)
-SPIN_COST = 1.0                  # energia/s a full torque, mas so quando parada: curvar enquanto se
+IDLE_PENALTY_RATE = 0.1          # energia/s de imposto de ociosidade, cheio quando parada.
+MOTOR_FORWARD_COST = 0.05        # energia/s a full thrust (era efetivamente 5.0/s)
+SPIN_COST = 0.3                  # energia/s a full torque, mas so quando parada: curvar enquanto se
                                  # move e de graca (a criatura precisa virar p/ perseguir comida)
 
 class LifeStage(Enum):
@@ -49,9 +49,9 @@ class LifeStage(Enum):
 # e "longevidade" como metrica emergente (ELDER degrada mais rapido).
 METABOLISM_RATE_BY_STAGE = {
     LifeStage.EGG: 0.0,
-    LifeStage.JUVENILE: 0.3,
-    LifeStage.ADULT: 0.5,    # BIT-35: era 0.8 — adulto sobrevive mais tempo sem comida
-    LifeStage.ELDER: 2.0,
+    LifeStage.JUVENILE: 0.1,
+    LifeStage.ADULT: 0.2,    # BIT-35: era 0.8 — adulto sobrevive mais tempo sem comida
+    LifeStage.ELDER: 1.0,
 }
 
 # Gradiente visual de ciclo de vida: azul (recem-nascido) -> verde (maduro) -> cinza/quase-preto
@@ -163,6 +163,13 @@ class Creature:
 
     def think(self, engine):
         """Roda a rede neural a 10 FPS (brain tick) e cacheia as 4 saidas de atuadores."""
+        # BIT-38: Sensores de proximidade de parede (normalizados [0,1], 0=perto, 1=longe/limite oposto)
+        cx, cy = self.body.position.x, self.body.position.y
+        wall_north = min(1.0, max(0.0, cy / engine.height))
+        wall_south = min(1.0, max(0.0, (engine.height - cy) / engine.height))
+        wall_west = min(1.0, max(0.0, cx / engine.width))
+        wall_east = min(1.0, max(0.0, (engine.width - cx) / engine.width))
+
         inputs = list(self.vision) + [
             min(self.energy / self.max_energy, 1.0),                                    # Energy_Level
             min(self.age / AGE_DEGRADATION_SCALE, 1.0),                                  # Age_Degradation
@@ -171,6 +178,10 @@ class Creature:
             1.0 if self.is_holding else 0.0,                                             # Load_Sensor
             max(-1.0, min(1.0, self.body.velocity.length / KINETIC_LINEAR_NORM)),        # Kinetic_Feedback linear
             max(-1.0, min(1.0, self.body.angular_velocity / KINETIC_ANGULAR_NORM)),      # Kinetic_Feedback angular
+            wall_north,  # Índice 16: Wall_North
+            wall_south,  # Índice 17: Wall_South
+            wall_west,   # Índice 18: Wall_West
+            wall_east,   # Índice 19: Wall_East
         ]
         outputs = self.net.activate(inputs)
         self.motor_forward = outputs[0]

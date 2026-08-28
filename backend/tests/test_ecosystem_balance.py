@@ -39,16 +39,16 @@ def test_starting_energy_is_85():
     assert STARTING_ENERGY == 85.0
 
 
-def test_idle_penalty_rate_is_1_1():
-    assert IDLE_PENALTY_RATE == 1.1
+def test_idle_penalty_rate_is_0_1():
+    assert IDLE_PENALTY_RATE == 0.1
 
 
 def test_fertility_energy_threshold_is_50():
     assert FERTILITY_ENERGY_THRESHOLD == 50.0
 
 
-def test_metabolism_adult_is_0_5():
-    assert METABOLISM_RATE_BY_STAGE[LifeStage.ADULT] == 0.5
+def test_metabolism_adult_is_0_2():
+    assert METABOLISM_RATE_BY_STAGE[LifeStage.ADULT] == 0.2
 
 
 def test_oasis_ttl_min_is_25():
