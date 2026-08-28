@@ -126,6 +126,10 @@ def create_zero_genome(genome_id, config):
         )
 
     # Food-taxis: vira em direcao a comida fora do centro (BIT-21).
+    # Bias zerado (BIT-37): sem bias neutro, o food-taxis seed domina o torque inicial;
+    # com STEER_GAIN=0.5 o bias aleatorio N(0,1) do neat poderia cancelar o sinal direcional.
+    if MOTOR_TORQUE_NODE_KEY in genome.nodes:
+        genome.nodes[MOTOR_TORQUE_NODE_KEY].bias = 0.0
     for i in range(9):  # 9 setores visuais; input node key = -(i+1)
         conn_key = (-(i + 1), MOTOR_TORQUE_NODE_KEY)
         if conn_key in genome.connections:
